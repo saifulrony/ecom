@@ -70,6 +70,11 @@ func SetupRoutes() *gin.Engine {
 
 		// Category routes
 		api.GET("/categories", controllers.GetCategories)
+
+		// Chat routes (public)
+		api.POST("/chat", controllers.HandleChat)
+		api.GET("/chat/active", controllers.GetActiveChat) // Find active chat by user/IP (useful when localStorage is cleared)
+		api.GET("/chat/:id", controllers.GetChatMessages)
 	}
 
 	// Protected routes
@@ -132,6 +137,13 @@ func SetupRoutes() *gin.Engine {
 		// Users management
 		admin.GET("/users", controllers.GetUsers)
 		admin.GET("/customers", controllers.GetCustomers)
+
+		// Support/Chat management
+		// More specific routes must come before less specific ones
+		admin.GET("/support/chats/:id/messages", controllers.GetChatMessagesAdmin)
+		admin.POST("/support/chats/:id/message", controllers.SendAdminMessage)
+		admin.PUT("/support/chats/:id/status", controllers.UpdateChatStatus)
+		admin.GET("/support/chats", controllers.GetChats)
 
 		// Orders management
 		admin.GET("/orders", controllers.GetAllOrders)

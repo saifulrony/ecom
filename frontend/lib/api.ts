@@ -305,6 +305,11 @@ export const adminAPI = {
   updateCampaign: (id: number, data: any) => api.put(`/admin/campaigns/${id}`, data),
   deleteCampaign: (id: number) => api.delete(`/admin/campaigns/${id}`),
   getCampaignStats: (id: number) => api.get(`/admin/campaigns/${id}/stats`),
+  // Support/Chat
+  getChats: (params?: { status?: string }) => api.get('/admin/support/chats', { params }),
+  getChatMessages: (id: number) => api.get(`/admin/support/chats/${id}/messages`),
+  sendChatMessage: (id: number, message: string) => api.post(`/admin/support/chats/${id}/message`, { message }),
+  updateChatStatus: (id: number, status: 'active' | 'resolved' | 'pending') => api.put(`/admin/support/chats/${id}/status`, { status }),
 }
 
 export default api

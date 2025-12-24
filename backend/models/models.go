@@ -124,3 +124,28 @@ type Campaign struct {
 	DeletedAt     gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
+type Chat struct {
+	ID              uint           `json:"id" gorm:"primaryKey"`
+	UserID          *uint          `json:"user_id"` // Optional - can be null for anonymous users
+	User            *User          `json:"user,omitempty" gorm:"foreignKey:UserID"`
+	IPAddress       string         `json:"ip_address"` // Store IP for anonymous users (fallback when localStorage is cleared)
+	Status          string         `json:"status" gorm:"default:active"` // active, resolved, pending
+	SupportStaffID  *uint          `json:"support_staff_id"` // Assigned support staff
+	SupportStaff    *User          `json:"support_staff,omitempty" gorm:"foreignKey:SupportStaffID"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
+	DeletedAt       gorm.DeletedAt `json:"-" gorm:"index"`
+	Messages        []ChatMessage  `json:"messages,omitempty" gorm:"foreignKey:ChatID"`
+}
+
+type ChatMessage struct {
+	ID        uint           `json:"id" gorm:"primaryKey"`
+	ChatID    uint           `json:"chat_id" gorm:"not null"`
+	Chat      Chat           `json:"chat,omitempty" gorm:"foreignKey:ChatID"`
+	Sender    string         `json:"sender" gorm:"not null"` // "user" or "ai"
+	Message   string         `json:"message" gorm:"not null"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
+}
+

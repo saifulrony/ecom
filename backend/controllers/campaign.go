@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"net/http"
-	"strconv"
 	"time"
 
 	"ecom-backend/database"
@@ -226,7 +225,7 @@ func GetCampaignStats(c *gin.Context) {
 	}
 
 	// Mock cart additions (in real app, this would come from analytics)
-	cartAdditions := uniqueVisitors * 1.5
+	cartAdditions := float64(uniqueVisitors) * 1.5
 	if cartAdditions < 0 {
 		cartAdditions = 0
 	}

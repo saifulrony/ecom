@@ -101,6 +101,8 @@ func Migrate() {
 		&models.AuditLog{},
 		&models.Wishlist{},
 		&models.Campaign{},
+		&models.Chat{},
+		&models.ChatMessage{},
 	)
 	if err != nil {
 		log.Fatal("Failed to migrate database:", err)

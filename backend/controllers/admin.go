@@ -55,6 +55,77 @@ func GetCustomers(c *gin.Context) {
 	c.JSON(http.StatusOK, customers)
 }
 
+// GetChats returns all chat sessions with their messages (admin only)
+func GetChats(c *gin.Context) {
+	var chats []models.Chat
+	
+	// Preload user, support staff, and messages
+	query := database.DB.Preload("User").Preload("SupportStaff").Preload("Messages").
+		Order("updated_at DESC")
+	
+	// Filter by status if provided
+	if status := c.Query("status"); status != "" {
+		query = query.Where("status = ?", status)
+	}
+	
+	if err := query.Find(&chats).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch chats"})
+		return
+	}
+
+	// Format response
+	type ChatResponse struct {
+		ID              uint      `json:"id"`
+		UserID          *uint     `json:"user_id"`
+		UserName        string    `json:"user_name"`
+		UserEmail       string    `json:"user_email"`
+		Status          string    `json:"status"`
+		SupportStaffID  *uint     `json:"support_staff_id"`
+		SupportStaffName string   `json:"support_staff_name"`
+		SupportStaffEmail string  `json:"support_staff_email"`
+		LastMessage     string    `json:"last_message"`
+		LastMessageTime string    `json:"last_message_time"`
+		CreatedAt       string    `json:"created_at"`
+		MessageCount    int       `json:"message_count"`
+	}
+
+	chatResponses := make([]ChatResponse, 0)
+	for _, chat := range chats {
+		response := ChatResponse{
+			ID:     chat.ID,
+			UserID: chat.UserID,
+			Status: chat.Status,
+			SupportStaffID: chat.SupportStaffID,
+			CreatedAt: chat.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			MessageCount: len(chat.Messages),
+		}
+
+		if chat.User != nil {
+			response.UserName = chat.User.Name
+			response.UserEmail = chat.User.Email
+		} else {
+			response.UserName = "Anonymous"
+			response.UserEmail = "N/A"
+		}
+
+		if chat.SupportStaff != nil {
+			response.SupportStaffName = chat.SupportStaff.Name
+			response.SupportStaffEmail = chat.SupportStaff.Email
+		}
+
+		// Get last message
+		if len(chat.Messages) > 0 {
+			lastMsg := chat.Messages[len(chat.Messages)-1]
+			response.LastMessage = lastMsg.Message
+			response.LastMessageTime = lastMsg.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
+		}
+
+		chatResponses = append(chatResponses, response)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"chats": chatResponses})
+}
+
 // GetAllOrders returns all orders (admin only)
 func GetAllOrders(c *gin.Context) {
 	var orders []models.Order

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { productAPI, Product, Category } from '@/lib/api'
 import ProductCard from '@/components/ProductCard'
+import ChatBox from '@/components/ChatBox'
 import Link from 'next/link'
 import { FiArrowRight, FiTag } from 'react-icons/fi'
 
@@ -213,6 +214,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* AI Chat Box */}
+      <ChatBox />
     </div>
   )
 }
