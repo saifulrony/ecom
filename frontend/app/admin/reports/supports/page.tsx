@@ -1,65 +1,64 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { FiHeadphones, FiMessageCircle, FiFileText, FiUsers, FiClock, FiCheckCircle, FiAlertCircle, FiTrendingUp } from 'react-icons/fi'
-import { useAuthStore } from '@/store/authStore'
+import { FiMessageCircle, FiFileText, FiClock, FiCheckCircle, FiAlertCircle } from 'react-icons/fi'
+import { useAdminAuth } from '@/hooks/useAdminAuth'
+import { adminAPI } from '@/lib/api'
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts'
 
 interface Chat {
   id: number
-  user_id: number
+  user_id: number | null
+  user_name: string
+  user_email: string
   status: 'active' | 'resolved' | 'pending'
   created_at: string
   message_count: number
-}
-
-interface Ticket {
-  id: number
-  status: 'open' | 'in_progress' | 'resolved' | 'closed'
-  priority: 'low' | 'medium' | 'high' | 'urgent'
-  created_at: string
+  last_message_time?: string
 }
 
 export default function ReportsSupportsPage() {
-  const router = useRouter()
-  const { user, token } = useAuthStore()
+  const { isAuthenticated } = useAdminAuth()
   const [chats, setChats] = useState<Chat[]>([])
-  const [tickets, setTickets] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState('30')
   const [activeTab, setActiveTab] = useState<'chats' | 'tickets'>('chats')
 
   useEffect(() => {
-    if (!user || !token) {
-      router.push('/admin/login')
-      return
+    if (isAuthenticated) {
+      fetchData()
     }
-
-    fetchData()
-  }, [user, token, router, dateRange])
+  }, [isAuthenticated, dateRange])
 
   const fetchData = async () => {
     try {
-      // Mock data - replace with actual API calls
-      const mockChats: Chat[] = [
-        { id: 1, user_id: 1, status: 'active', created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), message_count: 5 },
-        { id: 2, user_id: 2, status: 'resolved', created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), message_count: 12 },
-        { id: 3, user_id: 3, status: 'pending', created_at: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), message_count: 3 },
-        { id: 4, user_id: 4, status: 'active', created_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), message_count: 8 },
-        { id: 5, user_id: 5, status: 'resolved', created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), message_count: 15 },
-      ]
+      setLoading(true)
+      // Fetch all chats (no status filter for reports)
+      const response = await adminAPI.getChats()
+      const chatData = response.data.chats || []
+      
+      // Filter by date range
+      const days = parseInt(dateRange)
+      const cutoffDate = new Date()
+      cutoffDate.setDate(cutoffDate.getDate() - days)
+      
+      const filteredChats = chatData.filter((chat: any) => {
+        const chatDate = new Date(chat.created_at)
+        return chatDate >= cutoffDate
+      })
+      
+      const transformedChats: Chat[] = filteredChats.map((chat: any) => ({
+        id: chat.id,
+        user_id: chat.user_id || null,
+        user_name: chat.user_name || 'Anonymous',
+        user_email: chat.user_email || 'N/A',
+        status: chat.status || 'active',
+        created_at: chat.created_at,
+        message_count: chat.message_count || 0,
+        last_message_time: chat.last_message_time,
+      }))
 
-      const mockTickets: Ticket[] = [
-        { id: 1, status: 'open', priority: 'high', created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
-        { id: 2, status: 'in_progress', priority: 'medium', created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString() },
-        { id: 3, status: 'resolved', priority: 'low', created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() },
-        { id: 4, status: 'open', priority: 'urgent', created_at: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString() },
-        { id: 5, status: 'closed', priority: 'low', created_at: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString() },
-      ]
-
-      setChats(mockChats)
-      setTickets(mockTickets)
+      setChats(transformedChats)
     } catch (error) {
       console.error('Failed to fetch data:', error)
     } finally {
@@ -81,15 +80,25 @@ export default function ReportsSupportsPage() {
   const resolvedChats = chats.filter(c => c.status === 'resolved').length
   const pendingChats = chats.filter(c => c.status === 'pending').length
   const totalMessages = chats.reduce((sum, c) => sum + c.message_count, 0)
-  const avgResponseTime = 4.5 // Mock data
-
-  const totalTickets = tickets.length
-  const openTickets = tickets.filter(t => t.status === 'open').length
-  const inProgressTickets = tickets.filter(t => t.status === 'in_progress').length
-  const resolvedTickets = tickets.filter(t => t.status === 'resolved').length
-  const closedTickets = tickets.filter(t => t.status === 'closed').length
-  const urgentTickets = tickets.filter(t => t.priority === 'urgent').length
-  const avgResolutionTime = 18.5 // Mock data
+  
+  // Calculate average response time (time between first and last message per chat)
+  const calculateAvgResponseTime = () => {
+    if (chats.length === 0) return 0
+    // This is a simplified calculation - in a real scenario, you'd fetch message timestamps
+    // For now, we'll estimate based on chat creation to last message time
+    const timesWithMessages = chats.filter(c => c.message_count > 1 && c.last_message_time)
+    if (timesWithMessages.length === 0) return 0
+    
+    const totalMinutes = timesWithMessages.reduce((sum, chat) => {
+      const created = new Date(chat.created_at).getTime()
+      const lastMessage = new Date(chat.last_message_time!).getTime()
+      const diffMinutes = (lastMessage - created) / (1000 * 60)
+      return sum + diffMinutes
+    }, 0)
+    
+    return Math.round(totalMinutes / timesWithMessages.length)
+  }
+  const avgResponseTime = calculateAvgResponseTime()
 
   // Chat status distribution
   const chatStatusData = [
@@ -98,30 +107,38 @@ export default function ReportsSupportsPage() {
     { name: 'Pending', value: pendingChats },
   ]
 
-  // Ticket status distribution
-  const ticketStatusData = [
-    { name: 'Open', value: openTickets },
-    { name: 'In Progress', value: inProgressTickets },
-    { name: 'Resolved', value: resolvedTickets },
-    { name: 'Closed', value: closedTickets },
-  ]
 
-  // Ticket priority distribution
-  const ticketPriorityData = [
-    { name: 'Low', value: tickets.filter(t => t.priority === 'low').length },
-    { name: 'Medium', value: tickets.filter(t => t.priority === 'medium').length },
-    { name: 'High', value: tickets.filter(t => t.priority === 'high').length },
-    { name: 'Urgent', value: tickets.filter(t => t.priority === 'urgent').length },
-  ]
-
-  // Support activity over time (mock data)
-  const supportActivityData = [
-    { date: '2024-12-20', chats: 5, tickets: 3 },
-    { date: '2024-12-21', chats: 8, tickets: 5 },
-    { date: '2024-12-22', chats: 12, tickets: 7 },
-    { date: '2024-12-23', chats: 10, tickets: 4 },
-    { date: '2024-12-24', chats: 15, tickets: 6 },
-  ]
+  // Calculate chat activity over time
+  const calculateActivityOverTime = () => {
+    const days = parseInt(dateRange)
+    const activityMap: { [key: string]: number } = {}
+    
+    // Initialize all days in the range with 0
+    const today = new Date()
+    for (let i = 0; i < days; i++) {
+      const date = new Date(today)
+      date.setDate(date.getDate() - i)
+      const dateKey = date.toISOString().split('T')[0]
+      activityMap[dateKey] = 0
+    }
+    
+    // Count chats per day
+    chats.forEach(chat => {
+      const chatDate = new Date(chat.created_at).toISOString().split('T')[0]
+      if (activityMap.hasOwnProperty(chatDate)) {
+        activityMap[chatDate]++
+      }
+    })
+    
+    // Convert to array and sort by date
+    return Object.keys(activityMap)
+      .sort()
+      .map(date => ({
+        date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        chats: activityMap[date],
+      }))
+  }
+  const supportActivityData = calculateActivityOverTime()
 
   const COLORS = ['#ff6b35', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
 
@@ -220,7 +237,9 @@ export default function ReportsSupportsPage() {
                 </div>
               </div>
               <h3 className="text-sm font-medium text-gray-500 mb-1">Avg Response Time</h3>
-              <p className="text-2xl font-bold text-gray-900">{avgResponseTime}m</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {avgResponseTime > 60 ? `${Math.round(avgResponseTime / 60)}h` : `${avgResponseTime}m`}
+              </p>
             </div>
           </div>
 
@@ -319,170 +338,13 @@ export default function ReportsSupportsPage() {
       )}
 
       {activeTab === 'tickets' && (
-        <>
-          {/* Ticket Key Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center">
-                  <FiFileText className="w-6 h-6 text-green-600" />
-                </div>
-              </div>
-              <h3 className="text-sm font-medium text-gray-500 mb-1">Total Tickets</h3>
-              <p className="text-2xl font-bold text-gray-900">{totalTickets}</p>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-red-50 rounded-lg flex items-center justify-center">
-                  <FiAlertCircle className="w-6 h-6 text-red-600" />
-                </div>
-              </div>
-              <h3 className="text-sm font-medium text-gray-500 mb-1">Open Tickets</h3>
-              <p className="text-2xl font-bold text-gray-900">{openTickets}</p>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-purple-50 rounded-lg flex items-center justify-center">
-                  <FiClock className="w-6 h-6 text-purple-600" />
-                </div>
-              </div>
-              <h3 className="text-sm font-medium text-gray-500 mb-1">Avg Resolution Time</h3>
-              <p className="text-2xl font-bold text-gray-900">{avgResolutionTime}h</p>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-orange-50 rounded-lg flex items-center justify-center">
-                  <FiCheckCircle className="w-6 h-6 text-orange-600" />
-                </div>
-              </div>
-              <h3 className="text-sm font-medium text-gray-500 mb-1">Resolution Rate</h3>
-              <p className="text-2xl font-bold text-gray-900">
-                {totalTickets > 0 ? ((resolvedTickets + closedTickets) / totalTickets * 100).toFixed(1) : 0}%
-              </p>
-            </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12">
+          <div className="text-center text-gray-500">
+            <FiFileText className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+            <h3 className="text-xl font-semibold text-gray-700 mb-2">Ticket System Not Available</h3>
+            <p className="text-sm">The ticket system is not currently implemented. Only chat support is available.</p>
           </div>
-
-          {/* Ticket Statistics */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Ticket Statistics</h2>
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="text-center">
-                <p className="text-xs text-gray-500 mb-1">Open</p>
-                <p className="text-2xl font-bold text-red-600">{openTickets}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-xs text-gray-500 mb-1">In Progress</p>
-                <p className="text-2xl font-bold text-blue-600">{inProgressTickets}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-xs text-gray-500 mb-1">Resolved</p>
-                <p className="text-2xl font-bold text-green-600">{resolvedTickets}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-xs text-gray-500 mb-1">Closed</p>
-                <p className="text-2xl font-bold text-gray-600">{closedTickets}</p>
-              </div>
-            </div>
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">Urgent Tickets</span>
-                <span className="text-sm font-semibold text-red-600">{urgentTickets}</span>
-              </div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">Avg Resolution Time</span>
-                <span className="text-sm font-semibold text-gray-900">{avgResolutionTime}h</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Ticket Resolution Rate</span>
-                <span className="text-sm font-semibold text-[#ff6b35]">
-                  {totalTickets > 0 ? (((resolvedTickets + closedTickets) / totalTickets) * 100).toFixed(1) : 0}%
-                </span>
-              </div>
-            </div>
-            {ticketStatusData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={ticketStatusData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {ticketStatusData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : null}
-          </div>
-
-          {/* Ticket Activity Over Time */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Ticket Activity Over Time</h2>
-            {supportActivityData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={supportActivityData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="date" 
-                    tick={{ fontSize: 12 }}
-                    angle={-45}
-                    textAnchor="end"
-                    height={80}
-                  />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey="tickets" 
-                    stroke="#ff6b35" 
-                    strokeWidth={2}
-                    name="Tickets"
-                    dot={{ fill: '#ff6b35', r: 4 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-[300px] text-gray-500">
-                No activity data available
-              </div>
-            )}
-          </div>
-
-          {/* Ticket Priority Distribution */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Tickets by Priority</h2>
-            {ticketPriorityData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={ticketPriorityData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="name" 
-                    tick={{ fontSize: 12 }}
-                  />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="value" fill="#ff6b35" name="Tickets" />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-[300px] text-gray-500">
-                No priority data available
-              </div>
-            )}
-          </div>
-        </>
+        </div>
       )}
     </div>
   )

@@ -30,6 +30,7 @@ interface Chat {
 export default function SupportChatsPage() {
   const { isAuthenticated } = useAdminAuth()
   const [chats, setChats] = useState<Chat[]>([])
+  const [allChats, setAllChats] = useState<Chat[]>([]) // All chats for statistics
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loading, setLoading] = useState(true)
@@ -69,6 +70,27 @@ export default function SupportChatsPage() {
   const fetchChats = async () => {
     try {
       setLoading(true)
+      
+      // Fetch all chats for statistics
+      const allResponse = await adminAPI.getChats()
+      const allChatData = allResponse.data.chats || []
+      const allTransformedChats: Chat[] = allChatData.map((chat: any) => ({
+        id: chat.id,
+        user_id: chat.user_id || null,
+        user_name: chat.user_name || 'Anonymous',
+        user_email: chat.user_email || 'N/A',
+        status: chat.status || 'active',
+        last_message: chat.last_message || '',
+        last_message_time: chat.last_message_time || chat.created_at,
+        created_at: chat.created_at,
+        message_count: chat.message_count || 0,
+        support_staff_id: chat.support_staff_id,
+        support_staff_name: chat.support_staff_name,
+        support_staff_email: chat.support_staff_email,
+      }))
+      setAllChats(allTransformedChats)
+      
+      // Fetch filtered chats for display
       const params: any = {}
       if (statusFilter !== 'all') {
         params.status = statusFilter
@@ -196,6 +218,12 @@ export default function SupportChatsPage() {
     }
   }
 
+  // Calculate statistics from all chats
+  const totalChats = allChats.length
+  const activeChats = allChats.filter(c => c.status === 'active').length
+  const pendingChats = allChats.filter(c => c.status === 'pending').length
+  const resolvedChats = allChats.filter(c => c.status === 'resolved').length
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -229,21 +257,48 @@ export default function SupportChatsPage() {
               />
             </div>
             
-            {/* Status Filter */}
-            <div className="flex gap-2">
-              {(['all', 'active', 'pending', 'resolved'] as const).map((status) => (
-                <button
-                  key={status}
-                  onClick={() => setStatusFilter(status)}
-                  className={`px-3 py-1 text-xs font-medium rounded-full transition ${
-                    statusFilter === status
-                      ? 'bg-[#ff6b35] text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
-                </button>
-              ))}
+            {/* Status Filter with Counts */}
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setStatusFilter('all')}
+                className={`px-3 py-1 text-xs font-medium rounded-full transition ${
+                  statusFilter === 'all'
+                    ? 'bg-[#ff6b35] text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                All ({totalChats})
+              </button>
+              <button
+                onClick={() => setStatusFilter('active')}
+                className={`px-3 py-1 text-xs font-medium rounded-full transition ${
+                  statusFilter === 'active'
+                    ? 'bg-[#ff6b35] text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Active ({activeChats})
+              </button>
+              <button
+                onClick={() => setStatusFilter('pending')}
+                className={`px-3 py-1 text-xs font-medium rounded-full transition ${
+                  statusFilter === 'pending'
+                    ? 'bg-[#ff6b35] text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Pending ({pendingChats})
+              </button>
+              <button
+                onClick={() => setStatusFilter('resolved')}
+                className={`px-3 py-1 text-xs font-medium rounded-full transition ${
+                  statusFilter === 'resolved'
+                    ? 'bg-[#ff6b35] text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Resolved ({resolvedChats})
+              </button>
             </div>
           </div>
 
