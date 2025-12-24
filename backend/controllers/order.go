@@ -57,8 +57,8 @@ func CreateOrder(c *gin.Context) {
 			var coupon models.Coupon
 			if err := database.DB.Where("code = ? AND is_active = ?", req.CouponCode, true).First(&coupon).Error; err == nil {
 				now := time.Now()
-				// Check validity period (inclusive start, exclusive end to match ValidateCoupon)
-				valid := !now.Before(coupon.ValidFrom) && now.Before(coupon.ValidUntil)
+				// Check validity period (inclusive start and end to match ValidateCoupon)
+				valid := !now.Before(coupon.ValidFrom) && !now.After(coupon.ValidUntil)
 			if valid && (coupon.UsageLimit == 0 || coupon.UsedCount < coupon.UsageLimit) {
 				if total >= coupon.MinPurchase {
 					if coupon.Type == "percentage" {

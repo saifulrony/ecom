@@ -30,18 +30,20 @@ func ExportProductsCSV(c *gin.Context) {
 
 	c.Header("Content-Type", "text/csv")
 	c.Header("Content-Disposition", "attachment; filename=products_export.csv")
-	c.Status(http.StatusOK)
 
 	writer := csv.NewWriter(c.Writer)
 	defer writer.Flush()
 
-	// Write header
+	// Write header - check error before committing status
 	if err := writer.Write([]string{
 		"ID", "Name", "Description", "Price", "SKU", "Stock", "Category", "Image",
 	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write CSV header"})
 		return
 	}
+
+	// Commit status only after successful header write
+	c.Status(http.StatusOK)
 
 	// Write data
 	for _, product := range products {
@@ -55,7 +57,8 @@ func ExportProductsCSV(c *gin.Context) {
 			product.Category.Name,
 			product.Image,
 		}); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write CSV data"})
+			// Note: Status already committed, but we can still log/return error
+			// The client will see partial data, which is better than HTTP 200 with error JSON
 			return
 		}
 	}
