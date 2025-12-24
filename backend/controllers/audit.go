@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -13,7 +14,15 @@ import (
 
 // LogAction logs an audit action
 func LogAction(userID uint, action, entityType string, entityID uint, changes interface{}, c *gin.Context) {
-	changesJSON, _ := json.Marshal(changes)
+	var changesJSON []byte
+	var err error
+	if changes != nil {
+		changesJSON, err = json.Marshal(changes)
+		if err != nil {
+			// Log error but continue - use error message as changes
+			changesJSON = []byte(fmt.Sprintf(`{"error": "failed to marshal changes: %s"}`, err.Error()))
+		}
+	}
 	
 	auditLog := models.AuditLog{
 		UserID:     userID,

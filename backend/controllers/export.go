@@ -37,19 +37,23 @@ func ExportOrdersCSV(c *gin.Context) {
 	// Set headers for CSV download
 	c.Header("Content-Type", "text/csv")
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=orders_%s.csv", time.Now().Format("20060102")))
+	c.Status(http.StatusOK)
 
 	writer := csv.NewWriter(c.Writer)
 	defer writer.Flush()
 
 	// Write header
-	writer.Write([]string{
+	if err := writer.Write([]string{
 		"Order ID", "Customer Name", "Customer Email", "Date", "Status",
 		"Total", "Address", "City", "Postal Code", "Country", "Items Count",
-	})
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write CSV header"})
+		return
+	}
 
 	// Write data
 	for _, order := range orders {
-		writer.Write([]string{
+		if err := writer.Write([]string{
 			strconv.Itoa(int(order.ID)),
 			order.User.Name,
 			order.User.Email,
@@ -61,7 +65,10 @@ func ExportOrdersCSV(c *gin.Context) {
 			order.PostalCode,
 			order.Country,
 			strconv.Itoa(len(order.Items)),
-		})
+		}); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write CSV data"})
+			return
+		}
 	}
 }
 

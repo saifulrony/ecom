@@ -10,6 +10,7 @@ import {
 } from 'react-icons/fi'
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { useAuthStore } from '@/store/authStore'
+import { useAdminAuth } from '@/hooks/useAdminAuth'
 import { adminAPI, Order, Product } from '@/lib/api'
 
 interface DashboardStats {
@@ -31,7 +32,8 @@ interface TopProduct {
 
 export default function AdminDashboard() {
   const router = useRouter()
-  const { user, token, logout } = useAuthStore()
+  const { user, logout } = useAuthStore()
+  const { isAuthenticated } = useAdminAuth()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [recentOrders, setRecentOrders] = useState<Order[]>([])
   const [topProducts, setTopProducts] = useState<TopProduct[]>([])
@@ -40,21 +42,6 @@ export default function AdminDashboard() {
   const [ordersData, setOrdersData] = useState<Array<{ date: string; orders: number }>>([])
   const [statusData, setStatusData] = useState<Array<{ status: string; count: number }>>([])
   const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (!user || !token) {
-      router.push('/admin/login')
-      return
-    }
-
-    const userRole = user.role?.toLowerCase()
-    if (!userRole || !['admin', 'staff', 'manager'].includes(userRole)) {
-      router.push('/admin/login')
-      return
-    }
-
-    fetchDashboardData()
-  }, [user, token, router])
 
   const fetchDashboardData = async () => {
     try {
@@ -85,6 +72,14 @@ export default function AdminDashboard() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    // Only fetch data if authenticated (hook handles redirect)
+    if (isAuthenticated) {
+      fetchDashboardData()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated])
 
   if (loading) {
     return (

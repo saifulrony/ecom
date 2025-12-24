@@ -30,18 +30,22 @@ func ExportProductsCSV(c *gin.Context) {
 
 	c.Header("Content-Type", "text/csv")
 	c.Header("Content-Disposition", "attachment; filename=products_export.csv")
+	c.Status(http.StatusOK)
 
 	writer := csv.NewWriter(c.Writer)
 	defer writer.Flush()
 
 	// Write header
-	writer.Write([]string{
+	if err := writer.Write([]string{
 		"ID", "Name", "Description", "Price", "SKU", "Stock", "Category", "Image",
-	})
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write CSV header"})
+		return
+	}
 
 	// Write data
 	for _, product := range products {
-		writer.Write([]string{
+		if err := writer.Write([]string{
 			strconv.Itoa(int(product.ID)),
 			product.Name,
 			product.Description,
@@ -50,7 +54,10 @@ func ExportProductsCSV(c *gin.Context) {
 			strconv.Itoa(product.Stock),
 			product.Category.Name,
 			product.Image,
-		})
+		}); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write CSV data"})
+			return
+		}
 	}
 }
 

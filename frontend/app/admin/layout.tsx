@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import AdminSidebar from '@/components/AdminSidebar'
 import POSSidebar from '@/components/POSSidebar'
 import AdminHeader from '@/components/AdminHeader'
+import { useAdminAuth } from '@/hooks/useAdminAuth'
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -12,6 +13,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const isLoginPage = pathname === '/admin/login'
   // POS pages use POSSidebar, except settings which uses AdminSidebar
   const isPOSPage = (pathname === '/admin/pos' || pathname?.startsWith('/admin/pos/')) && pathname !== '/admin/pos/settings'
+
+  // Protect all admin routes (hook handles login page internally)
+  useAdminAuth()
 
   // Don't render sidebar and header on login page
   if (isLoginPage) {
