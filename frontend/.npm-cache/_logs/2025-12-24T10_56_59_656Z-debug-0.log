@@ -1,0 +1,358 @@
+0 verbose cli /usr/bin/node /usr/bin/npm
+1 info using npm@10.9.4
+2 info using node@v22.21.0
+3 silly config load:file:/usr/lib/node_modules/npm/npmrc
+4 silly config load:file:/home/saiful/ecom/frontend/.npmrc
+5 silly config load:file:/home/saiful/.npmrc
+6 silly config load:file:/usr/etc/npmrc
+7 verbose title npm install react-is
+8 verbose argv "install" "react-is" "--legacy-peer-deps" "--cache" "./.npm-cache"
+9 verbose logfile logs-max:10 dir:/home/saiful/ecom/frontend/.npm-cache/_logs/2025-12-24T10_56_59_656Z-
+10 verbose logfile /home/saiful/ecom/frontend/.npm-cache/_logs/2025-12-24T10_56_59_656Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+13 silly idealTree buildDeps
+14 silly fetch manifest react-is@*
+15 silly packumentCache full:https://registry.npmjs.org/react-is cache-miss
+16 http fetch GET 200 https://registry.npmjs.org/react-is 322ms (cache miss)
+17 silly packumentCache full:https://registry.npmjs.org/react-is set size:undefined disposed:false
+18 silly placeDep ROOT react-is@19.2.3 OK for: ecom-frontend@0.1.0 want: *
+19 silly reify moves {}
+20 silly audit bulk request {
+20 silly audit   '@alloc/quick-lru': [ '5.2.0' ],
+20 silly audit   '@jridgewell/gen-mapping': [ '0.3.13' ],
+20 silly audit   '@jridgewell/resolve-uri': [ '3.1.2' ],
+20 silly audit   '@jridgewell/sourcemap-codec': [ '1.5.5' ],
+20 silly audit   '@jridgewell/trace-mapping': [ '0.3.31' ],
+20 silly audit   '@next/env': [ '14.0.4' ],
+20 silly audit   '@next/swc-darwin-arm64': [ '14.0.4' ],
+20 silly audit   '@next/swc-darwin-x64': [ '14.0.4' ],
+20 silly audit   '@next/swc-linux-arm64-gnu': [ '14.0.4' ],
+20 silly audit   '@next/swc-linux-arm64-musl': [ '14.0.4' ],
+20 silly audit   '@next/swc-linux-x64-gnu': [ '14.0.4' ],
+20 silly audit   '@next/swc-linux-x64-musl': [ '14.0.4' ],
+20 silly audit   '@next/swc-win32-arm64-msvc': [ '14.0.4' ],
+20 silly audit   '@next/swc-win32-ia32-msvc': [ '14.0.4' ],
+20 silly audit   '@next/swc-win32-x64-msvc': [ '14.0.4' ],
+20 silly audit   '@nodelib/fs.scandir': [ '2.1.5' ],
+20 silly audit   '@nodelib/fs.stat': [ '2.0.5' ],
+20 silly audit   '@nodelib/fs.walk': [ '1.2.8' ],
+20 silly audit   '@reduxjs/toolkit': [ '2.11.2' ],
+20 silly audit   immer: [ '11.1.0', '10.2.0' ],
+20 silly audit   '@standard-schema/spec': [ '1.1.0' ],
+20 silly audit   '@standard-schema/utils': [ '0.3.0' ],
+20 silly audit   '@swc/helpers': [ '0.5.2' ],
+20 silly audit   '@types/d3-array': [ '3.2.2' ],
+20 silly audit   '@types/d3-color': [ '3.1.3' ],
+20 silly audit   '@types/d3-ease': [ '3.0.2' ],
+20 silly audit   '@types/d3-interpolate': [ '3.0.4' ],
+20 silly audit   '@types/d3-path': [ '3.1.1' ],
+20 silly audit   '@types/d3-scale': [ '4.0.9' ],
+20 silly audit   '@types/d3-shape': [ '3.1.7' ],
+20 silly audit   '@types/d3-time': [ '3.0.4' ],
+20 silly audit   '@types/d3-timer': [ '3.0.2' ],
+20 silly audit   '@types/node': [ '20.19.27' ],
+20 silly audit   '@types/prop-types': [ '15.7.15' ],
+20 silly audit   '@types/react': [ '18.3.27' ],
+20 silly audit   '@types/react-dom': [ '18.3.7' ],
+20 silly audit   '@types/use-sync-external-store': [ '0.0.6' ],
+20 silly audit   'any-promise': [ '1.3.0' ],
+20 silly audit   anymatch: [ '3.1.3' ],
+20 silly audit   arg: [ '5.0.2' ],
+20 silly audit   asynckit: [ '0.4.0' ],
+20 silly audit   autoprefixer: [ '10.4.23' ],
+20 silly audit   axios: [ '1.13.2' ],
+20 silly audit   'baseline-browser-mapping': [ '2.9.11' ],
+20 silly audit   'binary-extensions': [ '2.3.0' ],
+20 silly audit   braces: [ '3.0.3' ],
+20 silly audit   browserslist: [ '4.28.1' ],
+20 silly audit   busboy: [ '1.6.0' ],
+20 silly audit   'call-bind-apply-helpers': [ '1.0.2' ],
+20 silly audit   'camelcase-css': [ '2.0.1' ],
+20 silly audit   'caniuse-lite': [ '1.0.30001761' ],
+20 silly audit   chokidar: [ '3.6.0' ],
+20 silly audit   'glob-parent': [ '5.1.2', '6.0.2' ],
+20 silly audit   'client-only': [ '0.0.1' ],
+20 silly audit   clsx: [ '2.1.1' ],
+20 silly audit   'combined-stream': [ '1.0.8' ],
+20 silly audit   commander: [ '4.1.1' ],
+20 silly audit   cssesc: [ '3.0.0' ],
+20 silly audit   csstype: [ '3.2.3' ],
+20 silly audit   'd3-array': [ '3.2.4' ],
+20 silly audit   'd3-color': [ '3.1.0' ],
+20 silly audit   'd3-ease': [ '3.0.1' ],
+20 silly audit   'd3-format': [ '3.1.0' ],
+20 silly audit   'd3-interpolate': [ '3.0.1' ],
+20 silly audit   'd3-path': [ '3.1.0' ],
+20 silly audit   'd3-scale': [ '4.0.2' ],
+20 silly audit   'd3-shape': [ '3.2.0' ],
+20 silly audit   'd3-time': [ '3.1.0' ],
+20 silly audit   'd3-time-format': [ '4.1.0' ],
+20 silly audit   'd3-timer': [ '3.0.1' ],
+20 silly audit   'decimal.js-light': [ '2.5.1' ],
+20 silly audit   'delayed-stream': [ '1.0.0' ],
+20 silly audit   didyoumean: [ '1.2.2' ],
+20 silly audit   dlv: [ '1.1.3' ],
+20 silly audit   'dunder-proto': [ '1.0.1' ],
+20 silly audit   'electron-to-chromium': [ '1.5.267' ],
+20 silly audit   'es-define-property': [ '1.0.1' ],
+20 silly audit   'es-errors': [ '1.3.0' ],
+20 silly audit   'es-object-atoms': [ '1.1.1' ],
+20 silly audit   'es-set-tostringtag': [ '2.1.0' ],
+20 silly audit   'es-toolkit': [ '1.43.0' ],
+20 silly audit   escalade: [ '3.2.0' ],
+20 silly audit   eventemitter3: [ '5.0.1' ],
+20 silly audit   'fast-glob': [ '3.3.3' ],
+20 silly audit   fastq: [ '1.19.1' ],
+20 silly audit   fdir: [ '6.5.0' ],
+20 silly audit   'fill-range': [ '7.1.1' ],
+20 silly audit   'follow-redirects': [ '1.15.11' ],
+20 silly audit   'form-data': [ '4.0.5' ],
+20 silly audit   'fraction.js': [ '5.3.4' ],
+20 silly audit   fsevents: [ '2.3.3' ],
+20 silly audit   'function-bind': [ '1.1.2' ],
+20 silly audit   'get-intrinsic': [ '1.3.0' ],
+20 silly audit   'get-proto': [ '1.0.1' ],
+20 silly audit   'glob-to-regexp': [ '0.4.1' ],
+20 silly audit   gopd: [ '1.2.0' ],
+20 silly audit   'graceful-fs': [ '4.2.11' ],
+20 silly audit   'has-symbols': [ '1.1.0' ],
+20 silly audit   'has-tostringtag': [ '1.0.2' ],
+20 silly audit   hasown: [ '2.0.2' ],
+20 silly audit   internmap: [ '2.0.3' ],
+20 silly audit   'is-binary-path': [ '2.1.0' ],
+20 silly audit   'is-core-module': [ '2.16.1' ],
+20 silly audit   'is-extglob': [ '2.1.1' ],
+20 silly audit   'is-glob': [ '4.0.3' ],
+20 silly audit   'is-number': [ '7.0.0' ],
+20 silly audit   jiti: [ '1.21.7' ],
+20 silly audit   'js-tokens': [ '4.0.0' ],
+20 silly audit   lilconfig: [ '3.1.3' ],
+20 silly audit   'lines-and-columns': [ '1.2.4' ],
+20 silly audit   'loose-envify': [ '1.4.0' ],
+20 silly audit   'math-intrinsics': [ '1.1.0' ],
+20 silly audit   merge2: [ '1.4.1' ],
+20 silly audit   micromatch: [ '4.0.8' ],
+20 silly audit   'mime-db': [ '1.52.0' ],
+20 silly audit   'mime-types': [ '2.1.35' ],
+20 silly audit   mz: [ '2.7.0' ],
+20 silly audit   nanoid: [ '3.3.11' ],
+20 silly audit   next: [ '14.0.4' ],
+20 silly audit   postcss: [ '8.4.31', '8.5.6' ],
+20 silly audit   'node-releases': [ '2.0.27' ],
+20 silly audit   'normalize-path': [ '3.0.0' ],
+20 silly audit   'object-assign': [ '4.1.1' ],
+20 silly audit   'object-hash': [ '3.0.0' ],
+20 silly audit   'path-parse': [ '1.0.7' ],
+20 silly audit   picocolors: [ '1.1.1' ],
+20 silly audit   picomatch: [ '2.3.1', '4.0.3' ],
+20 silly audit   pify: [ '2.3.0' ],
+20 silly audit   pirates: [ '4.0.7' ],
+20 silly audit   'postcss-import': [ '15.1.0' ],
+20 silly audit   'postcss-js': [ '4.1.0' ],
+20 silly audit   'postcss-load-config': [ '6.0.1' ],
+20 silly audit   'postcss-nested': [ '6.2.0' ],
+20 silly audit   'postcss-selector-parser': [ '6.1.2' ],
+20 silly audit   'postcss-value-parser': [ '4.2.0' ],
+20 silly audit   'proxy-from-env': [ '1.1.0' ],
+20 silly audit   'queue-microtask': [ '1.2.3' ],
+20 silly audit   react: [ '18.3.1' ],
+20 silly audit   'react-dom': [ '18.3.1' ],
+20 silly audit   'react-icons': [ '4.12.0' ],
+20 silly audit   'react-redux': [ '9.2.0' ],
+20 silly audit   'read-cache': [ '1.0.0' ],
+20 silly audit   readdirp: [ '3.6.0' ],
+20 silly audit   recharts: [ '3.6.0' ],
+20 silly audit   redux: [ '5.0.1' ],
+20 silly audit   'redux-thunk': [ '3.1.0' ],
+20 silly audit   reselect: [ '5.1.1' ],
+20 silly audit   resolve: [ '1.22.11' ],
+20 silly audit   reusify: [ '1.1.0' ],
+20 silly audit   'run-parallel': [ '1.2.0' ],
+20 silly audit   scheduler: [ '0.23.2' ],
+20 silly audit   'source-map-js': [ '1.2.1' ],
+20 silly audit   streamsearch: [ '1.1.0' ],
+20 silly audit   'styled-jsx': [ '5.1.1' ],
+20 silly audit   sucrase: [ '3.35.1' ],
+20 silly audit   'supports-preserve-symlinks-flag': [ '1.0.0' ],
+20 silly audit   tailwindcss: [ '3.4.19' ],
+20 silly audit   thenify: [ '3.3.1' ],
+20 silly audit   'thenify-all': [ '1.6.0' ],
+20 silly audit   'tiny-invariant': [ '1.3.3' ],
+20 silly audit   tinyglobby: [ '0.2.15' ],
+20 silly audit   'to-regex-range': [ '5.0.1' ],
+20 silly audit   'ts-interface-checker': [ '0.1.13' ],
+20 silly audit   tslib: [ '2.8.1' ],
+20 silly audit   typescript: [ '5.9.3' ],
+20 silly audit   'undici-types': [ '6.21.0' ],
+20 silly audit   'update-browserslist-db': [ '1.2.3' ],
+20 silly audit   'use-sync-external-store': [ '1.6.0' ],
+20 silly audit   'util-deprecate': [ '1.0.2' ],
+20 silly audit   'victory-vendor': [ '37.3.6' ],
+20 silly audit   watchpack: [ '2.4.0' ],
+20 silly audit   zustand: [ '4.5.7' ],
+20 silly audit   'react-is': [ '19.2.3' ]
+20 silly audit }
+21 verbose reify failed optional dependency /home/saiful/ecom/frontend/node_modules/fsevents
+22 silly reify mark deleted [ '/home/saiful/ecom/frontend/node_modules/fsevents' ]
+23 verbose reify failed optional dependency /home/saiful/ecom/frontend/node_modules/@next/swc-win32-x64-msvc
+24 silly reify mark deleted [ '/home/saiful/ecom/frontend/node_modules/@next/swc-win32-x64-msvc' ]
+25 verbose reify failed optional dependency /home/saiful/ecom/frontend/node_modules/@next/swc-win32-ia32-msvc
+26 silly reify mark deleted [ '/home/saiful/ecom/frontend/node_modules/@next/swc-win32-ia32-msvc' ]
+27 verbose reify failed optional dependency /home/saiful/ecom/frontend/node_modules/@next/swc-win32-arm64-msvc
+28 silly reify mark deleted [
+28 silly reify   '/home/saiful/ecom/frontend/node_modules/@next/swc-win32-arm64-msvc'
+28 silly reify ]
+29 verbose reify failed optional dependency /home/saiful/ecom/frontend/node_modules/@next/swc-linux-arm64-musl
+30 silly reify mark deleted [
+30 silly reify   '/home/saiful/ecom/frontend/node_modules/@next/swc-linux-arm64-musl'
+30 silly reify ]
+31 verbose reify failed optional dependency /home/saiful/ecom/frontend/node_modules/@next/swc-linux-arm64-gnu
+32 silly reify mark deleted [ '/home/saiful/ecom/frontend/node_modules/@next/swc-linux-arm64-gnu' ]
+33 verbose reify failed optional dependency /home/saiful/ecom/frontend/node_modules/@next/swc-darwin-x64
+34 silly reify mark deleted [ '/home/saiful/ecom/frontend/node_modules/@next/swc-darwin-x64' ]
+35 verbose reify failed optional dependency /home/saiful/ecom/frontend/node_modules/@next/swc-darwin-arm64
+36 silly reify mark deleted [ '/home/saiful/ecom/frontend/node_modules/@next/swc-darwin-arm64' ]
+37 http cache react-is@https://registry.npmjs.org/react-is/-/react-is-19.2.3.tgz 0ms (cache hit)
+38 silly tarball no local data for react-is@https://registry.npmjs.org/react-is/-/react-is-19.2.3.tgz. Extracting by manifest.
+39 http fetch GET 200 https://registry.npmjs.org/react-is/-/react-is-19.2.3.tgz 83ms (cache miss)
+40 http fetch POST 200 https://registry.npmjs.org/-/npm/v1/security/advisories/bulk 260ms
+41 silly audit report {
+41 silly audit report   next: [
+41 silly audit report     {
+41 silly audit report       id: 1099638,
+41 silly audit report       url: 'https://github.com/advisories/GHSA-gp8f-8m3g-qvj9',
+41 silly audit report       title: 'Next.js Cache Poisoning',
+41 silly audit report       severity: 'high',
+41 silly audit report       vulnerable_versions: '>=14.0.0 <14.2.10',
+41 silly audit report       cwe: [Array],
+41 silly audit report       cvss: [Object]
+41 silly audit report     },
+41 silly audit report     {
+41 silly audit report       id: 1100421,
+41 silly audit report       url: 'https://github.com/advisories/GHSA-g77x-44xx-532m',
+41 silly audit report       title: 'Denial of Service condition in Next.js image optimization',
+41 silly audit report       severity: 'moderate',
+41 silly audit report       vulnerable_versions: '>=10.0.0 <14.2.7',
+41 silly audit report       cwe: [Array],
+41 silly audit report       cvss: [Object]
+41 silly audit report     },
+41 silly audit report     {
+41 silly audit report       id: 1101438,
+41 silly audit report       url: 'https://github.com/advisories/GHSA-7m27-7ghc-44w9',
+41 silly audit report       title: 'Next.js Allows a Denial of Service (DoS) with Server Actions',
+41 silly audit report       severity: 'moderate',
+41 silly audit report       vulnerable_versions: '>=14.0.0 <14.2.21',
+41 silly audit report       cwe: [Array],
+41 silly audit report       cvss: [Object]
+41 silly audit report     },
+41 silly audit report     {
+41 silly audit report       id: 1105461,
+41 silly audit report       url: 'https://github.com/advisories/GHSA-3h52-269p-cp9r',
+41 silly audit report       title: 'Information exposure in Next.js dev server due to lack of origin verification',
+41 silly audit report       severity: 'low',
+41 silly audit report       vulnerable_versions: '>=13.0 <14.2.30',
+41 silly audit report       cwe: [Array],
+41 silly audit report       cvss: [Object]
+41 silly audit report     },
+41 silly audit report     {
+41 silly audit report       id: 1111391,
+41 silly audit report       url: 'https://github.com/advisories/GHSA-mwv6-3258-q52c',
+41 silly audit report       title: 'Next Vulnerable to Denial of Service with Server Components',
+41 silly audit report       severity: 'high',
+41 silly audit report       vulnerable_versions: '>=13.3.0 <14.2.34',
+41 silly audit report       cwe: [Array],
+41 silly audit report       cvss: [Object]
+41 silly audit report     },
+41 silly audit report     {
+41 silly audit report       id: 1111461,
+41 silly audit report       url: 'https://github.com/advisories/GHSA-5j59-xgg2-r9c4',
+41 silly audit report       title: 'Next has a Denial of Service with Server Components - Incomplete Fix Follow-Up',
+41 silly audit report       severity: 'high',
+41 silly audit report       vulnerable_versions: '>=13.3.1-canary.0 <14.2.35',
+41 silly audit report       cwe: [Array],
+41 silly audit report       cvss: [Object]
+41 silly audit report     },
+41 silly audit report     {
+41 silly audit report       id: 1107226,
+41 silly audit report       url: 'https://github.com/advisories/GHSA-g5qg-72qw-gw5v',
+41 silly audit report       title: 'Next.js Affected by Cache Key Confusion for Image Optimization API Routes',
+41 silly audit report       severity: 'moderate',
+41 silly audit report       vulnerable_versions: '>=0.9.9 <14.2.31',
+41 silly audit report       cwe: [Array],
+41 silly audit report       cvss: [Object]
+41 silly audit report     },
+41 silly audit report     {
+41 silly audit report       id: 1107420,
+41 silly audit report       url: 'https://github.com/advisories/GHSA-7gfc-8cq8-jh5f',
+41 silly audit report       title: 'Next.js authorization bypass vulnerability',
+41 silly audit report       severity: 'high',
+41 silly audit report       vulnerable_versions: '>=9.5.5 <14.2.15',
+41 silly audit report       cwe: [Array],
+41 silly audit report       cvss: [Object]
+41 silly audit report     },
+41 silly audit report     {
+41 silly audit report       id: 1107512,
+41 silly audit report       url: 'https://github.com/advisories/GHSA-4342-x723-ch2f',
+41 silly audit report       title: 'Next.js Improper Middleware Redirect Handling Leads to SSRF',
+41 silly audit report       severity: 'moderate',
+41 silly audit report       vulnerable_versions: '>=0.9.9 <14.2.32',
+41 silly audit report       cwe: [Array],
+41 silly audit report       cvss: [Object]
+41 silly audit report     },
+41 silly audit report     {
+41 silly audit report       id: 1107513,
+41 silly audit report       url: 'https://github.com/advisories/GHSA-xv57-4mr9-wg8v',
+41 silly audit report       title: 'Next.js Content Injection Vulnerability for Image Optimization',
+41 silly audit report       severity: 'moderate',
+41 silly audit report       vulnerable_versions: '>=0.9.9 <14.2.31',
+41 silly audit report       cwe: [Array],
+41 silly audit report       cvss: [Object]
+41 silly audit report     },
+41 silly audit report     {
+41 silly audit report       id: 1108291,
+41 silly audit report       url: 'https://github.com/advisories/GHSA-qpjv-v59x-3qc4',
+41 silly audit report       title: 'Next.js Race Condition to Cache Poisoning',
+41 silly audit report       severity: 'low',
+41 silly audit report       vulnerable_versions: '>=0.9.9 <14.2.24',
+41 silly audit report       cwe: [Array],
+41 silly audit report       cvss: [Object]
+41 silly audit report     },
+41 silly audit report     {
+41 silly audit report       id: 1108953,
+41 silly audit report       url: 'https://github.com/advisories/GHSA-f82v-jwr5-mffw',
+41 silly audit report       title: 'Authorization Bypass in Next.js Middleware',
+41 silly audit report       severity: 'critical',
+41 silly audit report       vulnerable_versions: '>=14.0.0 <14.2.25',
+41 silly audit report       cwe: [Array],
+41 silly audit report       cvss: [Object]
+41 silly audit report     },
+41 silly audit report     {
+41 silly audit report       id: 1097295,
+41 silly audit report       url: 'https://github.com/advisories/GHSA-fr5h-rqp8-mj6g',
+41 silly audit report       title: 'Next.js Server-Side Request Forgery in Server Actions',
+41 silly audit report       severity: 'high',
+41 silly audit report       vulnerable_versions: '>=13.4.0 <14.1.1',
+41 silly audit report       cwe: [Array],
+41 silly audit report       cvss: [Object]
+41 silly audit report     }
+41 silly audit report   ]
+41 silly audit report }
+42 silly packumentCache corgi:https://registry.npmjs.org/next cache-miss
+43 http fetch GET 200 https://registry.npmjs.org/next 171ms (cache revalidated)
+44 silly packumentCache corgi:https://registry.npmjs.org/next set size:23135880 disposed:false
+45 silly ADD node_modules/react-is
+46 silly ADD
+47 silly ADD
+48 silly ADD
+49 silly ADD
+50 silly ADD
+51 silly ADD
+52 silly ADD
+53 silly ADD
+54 verbose cwd /home/saiful/ecom/frontend
+55 verbose os Linux 6.14.0-37-generic
+56 verbose node v22.21.0
+57 verbose npm  v10.9.4
+58 verbose exit 0
+59 info ok
