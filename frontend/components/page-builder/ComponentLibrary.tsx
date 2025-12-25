@@ -48,6 +48,7 @@ export const availableComponents: ComponentItem[] = [
   { type: 'divider', label: 'Divider', icon: FiMinus, color: 'text-gray-400', category: 'Layout' },
   { type: 'card', label: 'Card', icon: FiBox, color: 'text-cyan-600', category: 'Layout' },
   { type: 'grid', label: 'Grid', icon: FiGrid, color: 'text-pink-600', category: 'Layout' },
+  { type: 'column', label: 'Columns', icon: FiLayers, color: 'text-teal-600', category: 'Layout' },
   
   // Media
   { type: 'video', label: 'Video', icon: FiVideo, color: 'text-red-600', category: 'Media' },

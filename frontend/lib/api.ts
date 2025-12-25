@@ -291,6 +291,7 @@ export const adminAPI = {
   // Page Builder
   getPages: (params?: { published?: string }) => api.get('/admin/pages', { params }),
   getPage: (id: string) => api.get(`/admin/pages/${id}`),
+  getPageByPageId: (pageId: string) => api.get(`/api/pages/${pageId}`), // Public endpoint for rendering pages
   createPage: (data: { page_id: string; title: string; description?: string; components: any[]; is_published?: boolean }) =>
     api.post('/admin/pages', data),
   updatePage: (id: string, data: { page_id?: string; title?: string; description?: string; components?: any[]; is_published?: boolean }) =>

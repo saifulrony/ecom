@@ -26,6 +26,8 @@ import { RulerSystem } from './RulerSystem'
 import { DropZone } from './DropZone'
 import { ContextMenu } from './ContextMenu'
 import { Component, ComponentType } from './types'
+import GridComponent from './GridComponent'
+import ColumnComponent from './ColumnComponent'
 import {
   FiSave,
   FiEye,
@@ -93,7 +95,7 @@ const getDefaultComponent = (type: ComponentType): Component => {
       children: [],
     },
     grid: {
-      props: { columns: 3, gap: '20px' },
+      props: { columns: 3, rows: 3, gap: '20px', template: 'custom' },
       children: [],
     },
     video: {
@@ -225,7 +227,7 @@ export default function PageBuilder({
     if (active.id.toString().startsWith('library-')) {
       const componentType = active.data.current?.componentType as ComponentType
       if (componentType) {
-        const newComponent = getDefaultComponent(componentType)
+      const newComponent = getDefaultComponent(componentType)
         
         // Check if dropping on a drop zone - insert at that position
         if (over.id.toString().startsWith('drop-zone-')) {
@@ -254,10 +256,10 @@ export default function PageBuilder({
           }
         } else {
           // Drop on canvas - add to end
-          const newComponents = [...components, newComponent]
-          setComponents(newComponents)
-          addToHistory(newComponents)
-          setSelectedComponentId(newComponent.id)
+      const newComponents = [...components, newComponent]
+      setComponents(newComponents)
+      addToHistory(newComponents)
+      setSelectedComponentId(newComponent.id)
         }
       }
     } else {
@@ -286,13 +288,13 @@ export default function PageBuilder({
         }
       } else {
         // Fallback: try to find by direct ID match
-        const oldIndex = components.findIndex((c) => c.id === activeId)
-        const newIndex = components.findIndex((c) => c.id === overId)
+      const oldIndex = components.findIndex((c) => c.id === activeId)
+      const newIndex = components.findIndex((c) => c.id === overId)
 
-        if (oldIndex !== -1 && newIndex !== -1) {
-          const newComponents = arrayMove(components, oldIndex, newIndex)
-          setComponents(newComponents)
-          addToHistory(newComponents)
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newComponents = arrayMove(components, oldIndex, newIndex)
+        setComponents(newComponents)
+        addToHistory(newComponents)
         }
       }
     }
@@ -429,14 +431,47 @@ export default function PageBuilder({
     setSaving(true)
     try {
       if (pageId) {
-        // Update existing page
-        await adminAPI.updatePage(pageId, {
-          page_id: newPageId,
-          title: newPageTitle,
-          description: newPageDescription,
-          components,
-        })
-        alert('Page updated successfully!')
+        // Try to update existing page
+        try {
+          await adminAPI.updatePage(pageId, {
+            page_id: newPageId,
+            title: newPageTitle,
+            description: newPageDescription,
+            components,
+            is_published: true,
+          })
+          alert('Page updated successfully!')
+        } catch (updateError: any) {
+          // If update fails with 404, create the page instead
+          if (updateError.response?.status === 404) {
+            try {
+              await adminAPI.createPage({
+                page_id: newPageId || pageId,
+                title: newPageTitle,
+                description: newPageDescription,
+                components,
+                is_published: true,
+              })
+              alert('Page created successfully!')
+            } catch (createError: any) {
+              // If create fails (maybe page already exists), try update with new page_id
+              if (createError.response?.status === 409) {
+                await adminAPI.updatePage(newPageId || pageId, {
+                  page_id: newPageId,
+                  title: newPageTitle,
+                  description: newPageDescription,
+                  components,
+                  is_published: true,
+                })
+                alert('Page updated successfully!')
+              } else {
+                throw createError
+              }
+            }
+          } else {
+            throw updateError
+          }
+        }
       } else {
         // Create new page
         await adminAPI.createPage({
@@ -444,13 +479,14 @@ export default function PageBuilder({
           title: newPageTitle,
           description: newPageDescription,
           components,
-          is_published: false,
+          is_published: true,
         })
         alert('Page saved successfully!')
       }
       setShowSaveModal(false)
       if (onSave) onSave(components)
     } catch (error: any) {
+      console.error('Save error:', error.response?.status, error.response?.data)
       alert(error.response?.data?.error || 'Failed to save page')
     } finally {
       setSaving(false)
@@ -698,14 +734,14 @@ export default function PageBuilder({
         onDragEnd={handleDragEnd}
       >
         <div className="flex flex-1 overflow-hidden relative">
-          {/* Component Library */}
+        {/* Component Library */}
           {!previewMode && (
             <div className="bg-white border-r border-gray-200 flex-shrink-0 relative z-10">
               <ComponentLibrary onAddComponent={handleAddComponent} />
             </div>
           )}
 
-          {/* Canvas */}
+        {/* Canvas */}
           <div 
             ref={canvasRef}
             className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-100 relative flex items-start justify-center"
@@ -749,6 +785,9 @@ export default function PageBuilder({
                         <FiPlus className="h-16 w-16 mb-4 text-gray-300" />
                         <p className="text-lg font-medium">Start building your page</p>
                         <p className="text-sm">Drag components from the left panel or click to add</p>
+                        {pageId === 'home' && (
+                          <p className="text-xs text-gray-300 mt-2">Tip: This is your home page. Add components to customize it!</p>
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -756,24 +795,24 @@ export default function PageBuilder({
                       {/* Drop zone at the beginning */}
                       <DropZone id="drop-zone-0" index={0} />
                       {components.map((component, index) => (
-                        <React.Fragment key={component.id}>
+                      <React.Fragment key={component.id}>
                           <div data-component-id={component.id} data-selected={selectedComponentId === component.id ? 'true' : 'false'}>
-                            <SortableComponent
-                              component={component}
-                              isSelected={selectedComponentId === component.id}
-                              isHovered={hoveredComponentId === component.id}
-                              onClick={() => setSelectedComponentId(component.id)}
-                              onMouseEnter={() => setHoveredComponentId(component.id)}
-                              onMouseLeave={() => setHoveredComponentId(null)}
-                              onContextMenu={(e) => handleContextMenu(e, component.id)}
-                              onUpdate={handleUpdateComponent}
-                              onDelete={handleDeleteComponent}
-                              previewMode={previewMode}
-                            />
+                        <SortableComponent
+                          component={component}
+                          isSelected={selectedComponentId === component.id}
+                          isHovered={hoveredComponentId === component.id}
+                          onClick={() => setSelectedComponentId(component.id)}
+                          onMouseEnter={() => setHoveredComponentId(component.id)}
+                          onMouseLeave={() => setHoveredComponentId(null)}
+                          onContextMenu={(e) => handleContextMenu(e, component.id)}
+                          onUpdate={handleUpdateComponent}
+                          onDelete={handleDeleteComponent}
+                          previewMode={previewMode}
+                        />
                           </div>
                           {/* Drop zone after each component */}
                           <DropZone id={`drop-zone-${index + 1}`} index={index + 1} />
-                        </React.Fragment>
+                      </React.Fragment>
                       ))}
                     </>
                   )}
@@ -794,8 +833,8 @@ export default function PageBuilder({
           )}
         </div>
 
-        <DragOverlay>
-          {activeId ? (
+              <DragOverlay>
+                {activeId ? (
             activeId.toString().startsWith('library-') ? (
               (() => {
                 const componentType = activeId.toString().replace('library-', '') as ComponentType;
@@ -806,7 +845,7 @@ export default function PageBuilder({
                   <div className="bg-white border-2 border-indigo-500 rounded-lg shadow-lg flex flex-col items-center justify-center p-3 min-w-[120px] min-h-[100px]">
                     <div className="p-2 rounded-lg bg-indigo-50 mb-2">
                       <Icon className={`h-6 w-6 ${componentInfo.color}`} />
-                    </div>
+                  </div>
                     <span className="text-sm font-medium text-gray-700 text-center">
                       {componentInfo.label}
                     </span>
@@ -814,29 +853,29 @@ export default function PageBuilder({
                 );
               })()
             ) : null
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
 
-      {/* Context Menu */}
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          onClose={() => setContextMenu(null)}
-          onEdit={() => {
-            setSelectedComponentId(contextMenu.componentId)
-            setContextMenu(null)
-          }}
-          onDelete={() => handleDeleteComponent(contextMenu.componentId)}
-          onDuplicate={() => handleDuplicate(contextMenu.componentId)}
-          onCopy={() => handleCopy(contextMenu.componentId)}
-          onMoveUp={() => handleMoveUp(contextMenu.componentId)}
-          onMoveDown={() => handleMoveDown(contextMenu.componentId)}
-          canMoveUp={components.findIndex((c) => c.id === contextMenu.componentId) > 0}
-          canMoveDown={components.findIndex((c) => c.id === contextMenu.componentId) < components.length - 1}
-        />
-      )}
+          {/* Context Menu */}
+          {contextMenu && (
+            <ContextMenu
+              x={contextMenu.x}
+              y={contextMenu.y}
+              onClose={() => setContextMenu(null)}
+              onEdit={() => {
+                setSelectedComponentId(contextMenu.componentId)
+                setContextMenu(null)
+              }}
+              onDelete={() => handleDeleteComponent(contextMenu.componentId)}
+              onDuplicate={() => handleDuplicate(contextMenu.componentId)}
+              onCopy={() => handleCopy(contextMenu.componentId)}
+              onMoveUp={() => handleMoveUp(contextMenu.componentId)}
+              onMoveDown={() => handleMoveDown(contextMenu.componentId)}
+              canMoveUp={components.findIndex((c) => c.id === contextMenu.componentId) > 0}
+              canMoveDown={components.findIndex((c) => c.id === contextMenu.componentId) < components.length - 1}
+            />
+          )}
 
       {/* Save Modal */}
       {showSaveModal && (
@@ -1026,28 +1065,28 @@ function SortableComponent({
       const computedStyle = window.getComputedStyle(componentRef.current)
       const finalLeft = parseFloat(computedStyle.left) || 0
       const finalTop = parseFloat(computedStyle.top) || 0
-      
-      // Clean up inline styles
+        
+        // Clean up inline styles
       componentRef.current.style.transition = ''
       componentRef.current.style.width = ''
       componentRef.current.style.height = ''
       componentRef.current.style.left = ''
       componentRef.current.style.top = ''
       componentRef.current.style.position = ''
-      
-      // Update component state with final dimensions
-      const currentStyle = component.style || {}
-      const updatedComponent = {
-        ...component,
-        style: {
-          ...currentStyle,
-          width: `${finalWidth}px`,
+        
+        // Update component state with final dimensions
+        const currentStyle = component.style || {}
+        const updatedComponent = {
+          ...component,
+          style: {
+            ...currentStyle,
+            width: `${finalWidth}px`,
           ...(finalHeight > 50 ? { height: `${finalHeight}px` } : {}),
           ...(resizeDirection.current?.includes('left') && finalLeft !== 0 ? { left: `${finalLeft}px` } : {}),
           ...(resizeDirection.current?.includes('top') && finalTop !== 0 ? { top: `${finalTop}px` } : {}),
-        },
-      }
-      onUpdate(updatedComponent)
+          },
+        }
+        onUpdate(updatedComponent)
     }
     
     isResizing.current = false
@@ -1124,17 +1163,40 @@ function SortableComponent({
           ...(isResizing.current ? { transition: 'none' } : {}),
         }}
       >
-        <ComponentRenderer
-          component={component}
-          isSelected={isSelected}
-          isHovered={isHovered}
-          onClick={onClick}
-          onMouseEnter={onMouseEnter}
-          onMouseLeave={onMouseLeave}
-          onUpdate={onUpdate}
-          onDelete={onDelete}
-          previewMode={previewMode}
-        />
+        {component.type === 'grid' ? (
+          <GridComponent
+            component={component}
+            isSelected={isSelected}
+            isHovered={isHovered}
+            onClick={onClick}
+            onMouseEnter={onMouseEnter}
+            onMouseLeave={onMouseLeave}
+            onUpdate={onUpdate}
+            onDelete={onDelete}
+            onDeleteCell={(cellId) => {
+              if (component.children) {
+                const updatedChildren = component.children.filter(c => c.id !== cellId)
+                onUpdate({
+                  ...component,
+                  children: updatedChildren,
+                })
+              }
+            }}
+            previewMode={previewMode}
+          />
+        ) : (
+          <ComponentRenderer
+            component={component}
+            isSelected={isSelected}
+            isHovered={isHovered}
+            onClick={onClick}
+            onMouseEnter={onMouseEnter}
+            onMouseLeave={onMouseLeave}
+            onUpdate={onUpdate}
+            onDelete={onDelete}
+            previewMode={previewMode}
+          />
+        )}
         {!previewMode && isSelected && (
           <>
             <ResizeHandle position="top-left" />

@@ -5,6 +5,8 @@ import { Component } from './types'
 import Image from 'next/image'
 import Link from 'next/link'
 import { productAPI } from '@/lib/api'
+import { GridComponentRenderer } from './GridComponent'
+import { ColumnComponentRenderer } from './ColumnComponent'
 
 interface ComponentRendererProps {
   component: Component
@@ -16,6 +18,48 @@ interface ComponentRendererProps {
   onUpdate?: (component: Component) => void
   onDelete?: (id: string) => void
   previewMode?: boolean
+}
+
+// Helper function to get shadow style
+const getShadowStyle = (shadow: string | undefined) => {
+  const shadows: Record<string, string> = {
+    none: 'none',
+    sm: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+    md: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+    lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+    xl: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+    '2xl': '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+    inner: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.06)',
+  }
+  return shadows[shadow || 'none'] || shadows.none
+}
+
+// Helper function to get gradient background
+const getGradientBackground = (gradient: string | undefined, fallback: string) => {
+  if (!gradient || gradient === 'none') return fallback
+  
+  const gradients: Record<string, string> = {
+    'gradient-primary': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    'gradient-warm': 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+    'gradient-cool': 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+    'gradient-sunset': 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+    'gradient-ocean': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    'gradient-forest': 'linear-gradient(135deg, #134e5e 0%, #71b280 100%)',
+    'gradient-purple': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    'gradient-orange': 'linear-gradient(135deg, #ff6b35 0%, #f7931e 100%)',
+    'gradient-dark': 'linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%)',
+  }
+  
+  if (gradients[gradient]) {
+    return gradients[gradient]
+  }
+  
+  // Check if it's a custom gradient (starts with linear-gradient or radial-gradient)
+  if (gradient.startsWith('linear-gradient') || gradient.startsWith('radial-gradient')) {
+    return gradient
+  }
+  
+  return fallback
 }
 
 export default function ComponentRenderer({
@@ -37,13 +81,25 @@ export default function ComponentRenderer({
     switch (component.type) {
       case 'heading':
         const HeadingTag = (component.props?.level || 'h1') as keyof JSX.IntrinsicElements
+        const headingGradient = component.props?.gradient
+        const headingColor = component.props?.color || '#000000'
+        
         return (
           <HeadingTag
             style={{
-              color: component.props?.color || '#000000',
+              background: headingGradient && headingGradient !== 'none' 
+                ? getGradientBackground(headingGradient, headingColor)
+                : headingColor,
+              WebkitBackgroundClip: headingGradient && headingGradient !== 'none' ? 'text' : undefined,
+              WebkitTextFillColor: headingGradient && headingGradient !== 'none' ? 'transparent' : undefined,
+              backgroundClip: headingGradient && headingGradient !== 'none' ? 'text' : undefined,
+              color: headingGradient && headingGradient !== 'none' ? undefined : headingColor,
               fontSize: component.props?.fontSize || '2.5rem',
               textAlign: component.props?.align || 'left',
               fontWeight: component.props?.fontWeight || 'bold',
+              letterSpacing: component.props?.letterSpacing || 'normal',
+              lineHeight: component.props?.lineHeight || '1.2',
+              textShadow: component.props?.textShadow || 'none',
               ...baseStyle,
             }}
             className={component.className}
@@ -60,6 +116,8 @@ export default function ComponentRenderer({
               textAlign: component.props?.align || 'left',
               fontSize: component.props?.fontSize || '1rem',
               lineHeight: component.props?.lineHeight || '1.6',
+              fontWeight: component.props?.fontWeight || 'normal',
+              letterSpacing: component.props?.letterSpacing || 'normal',
               ...baseStyle,
             }}
             className={component.className}
@@ -68,20 +126,43 @@ export default function ComponentRenderer({
         )
 
       case 'button':
+        const buttonBg = component.props?.variant === 'primary' ? '#ff6b35' : (component.props?.bgColor || '#f3f4f6')
+        const buttonGradient = component.props?.gradient
+        const buttonShadow = getShadowStyle(component.props?.shadow)
+        const buttonHover = component.props?.hoverEffect || 'none'
+        
         const ButtonContent = (
           <button
             style={{
-              backgroundColor: component.props?.variant === 'primary' ? '#ff6b35' : component.props?.bgColor || '#f3f4f6',
-              color: component.props?.variant === 'primary' ? '#ffffff' : component.props?.color || '#000000',
-              padding: component.props?.size === 'lg' ? '12px 24px' : component.props?.size === 'sm' ? '6px 12px' : '8px 16px',
-              borderRadius: component.props?.rounded ? '9999px' : '8px',
-              border: component.props?.variant === 'outline' ? '2px solid #ff6b35' : 'none',
+              background: buttonGradient && buttonGradient !== 'none'
+                ? getGradientBackground(buttonGradient, buttonBg)
+                : buttonBg,
+              color: component.props?.variant === 'primary' || (buttonGradient && buttonGradient !== 'none') ? '#ffffff' : (component.props?.color || '#000000'),
+              padding: component.props?.size === 'lg' ? '14px 28px' : component.props?.size === 'sm' ? '8px 16px' : '10px 20px',
+              borderRadius: component.props?.radius || (component.props?.rounded ? '9999px' : '8px'),
+              border: component.props?.variant === 'outline' ? `2px solid ${component.props.borderColor || '#ff6b35'}` : component.props?.border ? `1px solid ${component.props.borderColor || '#e5e7eb'}` : 'none',
               fontSize: component.props?.fontSize || '1rem',
               fontWeight: component.props?.fontWeight || '600',
               cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              boxShadow: buttonShadow,
+              transform: 'translateY(0)',
               ...baseStyle,
             }}
             className={component.className}
+            onMouseEnter={(e) => {
+              if (buttonHover === 'lift') {
+                e.currentTarget.style.transform = 'translateY(-2px)'
+                e.currentTarget.style.boxShadow = getShadowStyle('lg')
+              } else if (buttonHover === 'glow') {
+                const glowColor = buttonGradient && buttonGradient !== 'none' ? '#ff6b35' : (component.props?.bgColor || '#ff6b35')
+                e.currentTarget.style.boxShadow = `0 0 20px ${glowColor}40`
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = buttonShadow
+            }}
           >
             {component.props?.text || component.content || 'Button'}
           </button>
@@ -95,24 +176,44 @@ export default function ComponentRenderer({
         )
 
       case 'image':
+        const imageShadow = getShadowStyle(component.props?.shadow)
+        const imageRadius = component.props?.radius || '0'
+        const imageHover = component.props?.hoverEffect || 'none'
+        
         return (
           <div style={{ textAlign: component.props?.align || 'left', ...baseStyle }}>
             {component.props?.src ? (
+              <div
+                style={{
+                  display: 'inline-block',
+                  borderRadius: imageRadius,
+                  overflow: 'hidden',
+                  boxShadow: imageShadow,
+                  transition: 'all 0.3s ease',
+                }}
+                className={imageHover === 'zoom' ? 'hover:scale-105' : imageHover === 'shadow' ? 'hover:shadow-xl' : ''}
+              >
               <Image
                 src={component.props.src}
                 alt={component.props?.alt || 'Image'}
                 width={component.props?.width === 'auto' ? 800 : parseInt(component.props?.width) || 800}
                 height={component.props?.height === 'auto' ? 600 : parseInt(component.props?.height) || 600}
                 className={component.className}
-                style={{ maxWidth: '100%', height: 'auto' }}
+                  style={{
+                    maxWidth: '100%',
+                    height: 'auto',
+                    display: 'block',
+                  }}
               />
+              </div>
             ) : (
               <div
-                className="bg-gray-200 flex items-center justify-center"
+                className="bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center border-2 border-dashed border-gray-300"
                 style={{
                   width: component.props?.width || '100%',
                   height: component.props?.height || '300px',
                   minHeight: '200px',
+                  borderRadius: imageRadius,
                 }}
               >
                 <span className="text-gray-400">No image selected</span>
@@ -122,12 +223,21 @@ export default function ComponentRenderer({
         )
 
       case 'section':
+        const sectionGradient = component.props?.gradient
+        const sectionBg = component.props?.background || '#ffffff'
+        const sectionShadow = getShadowStyle(component.props?.shadow)
+        
         return (
           <section
             style={{
               padding: component.props?.padding || '40px',
-              backgroundColor: component.props?.background || '#ffffff',
+              background: sectionGradient && sectionGradient !== 'none'
+                ? getGradientBackground(sectionGradient, sectionBg)
+                : sectionBg,
               textAlign: component.props?.align || 'center',
+              borderRadius: component.props?.radius || '0',
+              boxShadow: sectionShadow,
+              border: component.props?.border ? `1px solid ${component.props.borderColor || '#e5e7eb'}` : 'none',
               ...baseStyle,
             }}
             className={component.className}
@@ -155,6 +265,10 @@ export default function ComponentRenderer({
               gridTemplateColumns: `repeat(${component.props?.columns || 2}, 1fr)`,
               gap: component.props?.gap || '20px',
               padding: component.props?.padding || '20px',
+              borderRadius: component.props?.radius || '0',
+              backgroundColor: component.props?.background || 'transparent',
+              border: component.props?.border ? `1px solid ${component.props.borderColor || '#e5e7eb'}` : 'none',
+              boxShadow: getShadowStyle(component.props?.shadow),
               ...baseStyle,
             }}
             className={component.className}
@@ -186,12 +300,15 @@ export default function ComponentRenderer({
         )
 
       case 'divider':
+        const dividerStyle = component.props?.style || 'solid'
         return (
-          <hr
+          <div
             style={{
-              borderColor: component.props?.color || '#e5e7eb',
-              borderWidth: component.props?.thickness || '1px',
-              borderStyle: component.props?.style || 'solid',
+              height: component.props?.thickness || '1px',
+              backgroundColor: dividerStyle !== 'dashed' && dividerStyle !== 'dotted' ? (component.props?.color || '#e5e7eb') : 'transparent',
+              borderTop: dividerStyle === 'dashed' || dividerStyle === 'dotted' 
+                ? `${component.props?.thickness || '1px'} ${dividerStyle} ${component.props?.color || '#e5e7eb'}` 
+                : 'none',
               margin: component.props?.margin || '20px 0',
               ...baseStyle,
             }}
@@ -200,66 +317,95 @@ export default function ComponentRenderer({
         )
 
       case 'card':
+        const cardShadow = getShadowStyle(component.props?.shadow || 'md')
+        const cardGradient = component.props?.gradient
+        const cardBg = component.props?.background || '#ffffff'
+        const cardHover = component.props?.hoverEffect || 'none'
+        
         return (
           <div
             style={{
-              padding: component.props?.padding || '20px',
-              backgroundColor: component.props?.background || '#ffffff',
+              padding: component.props?.padding || '24px',
+              background: cardGradient && cardGradient !== 'none'
+                ? getGradientBackground(cardGradient, cardBg)
+                : cardBg,
               border: component.props?.border ? `1px solid ${component.props.borderColor || '#e5e7eb'}` : 'none',
-              borderRadius: component.props?.radius || '8px',
-              boxShadow: component.props?.shadow ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              borderRadius: component.props?.radius || '12px',
+              boxShadow: cardShadow,
+              transition: 'all 0.3s ease',
               ...baseStyle,
             }}
-            className={component.className}
+            className={`${component.className || ''} ${
+              cardHover === 'lift' ? 'hover:transform hover:-translate-y-2 hover:shadow-xl' :
+              cardHover === 'glow' ? 'hover:shadow-2xl' :
+              cardHover === 'scale' ? 'hover:scale-105' : ''
+            }`}
           >
             {component.props?.title && (
-              <h3 style={{ marginBottom: '10px', fontSize: '1.25rem', fontWeight: 'bold' }}>
+              <h3 style={{
+                marginBottom: '12px',
+                fontSize: component.props?.titleSize || '1.25rem',
+                fontWeight: component.props?.titleWeight || 'bold',
+                color: cardGradient && cardGradient !== 'none' ? '#ffffff' : (component.props?.titleColor || 'inherit'),
+              }}>
                 {component.props.title}
               </h3>
             )}
-            <div>{component.props?.content || 'Card content'}</div>
+            <div style={{
+              color: cardGradient && cardGradient !== 'none' ? '#ffffff' : 'inherit',
+            }}>
+              {component.props?.content || 'Card content'}
+            </div>
           </div>
         )
 
       case 'grid':
         return (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: `repeat(${component.props?.columns || 3}, 1fr)`,
-              gap: component.props?.gap || '20px',
-              ...baseStyle,
-            }}
-            className={component.className}
-          >
-            {component.children?.map((child) => (
-              <ComponentRenderer
-                key={child.id}
-                component={child}
-                isSelected={false}
-                isHovered={false}
-                onClick={() => {}}
-                onMouseEnter={() => {}}
-                onMouseLeave={() => {}}
-                previewMode={previewMode}
-              />
-            ))}
-          </div>
+          <GridComponentRenderer
+            component={component}
+            isSelected={isSelected}
+            isHovered={isHovered}
+            onClick={onClick}
+            onMouseEnter={onMouseEnter}
+            onMouseLeave={onMouseLeave}
+            previewMode={previewMode}
+          />
+        )
+
+      case 'column':
+        return (
+          <ColumnComponentRenderer
+            component={component}
+            isSelected={isSelected}
+            isHovered={isHovered}
+            onClick={onClick}
+            onMouseEnter={onMouseEnter}
+            onMouseLeave={onMouseLeave}
+            previewMode={previewMode}
+          />
         )
 
       case 'video':
         return (
           <div style={{ ...baseStyle }} className={component.className}>
             {component.props?.src ? (
+              <div
+                style={{
+                  borderRadius: component.props?.radius || '0',
+                  overflow: 'hidden',
+                  boxShadow: getShadowStyle(component.props?.shadow),
+                }}
+              >
               <iframe
                 src={component.props.src}
                 width={component.props?.width || '100%'}
                 height={component.props?.height || '400px'}
-                style={{ border: 'none' }}
+                  style={{ border: 'none', display: 'block' }}
                 allowFullScreen
               />
+              </div>
             ) : (
-              <div className="bg-gray-200 flex items-center justify-center" style={{ width: '100%', height: '400px' }}>
+              <div className="bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center border-2 border-dashed border-gray-300" style={{ width: '100%', height: '400px', borderRadius: component.props?.radius || '0' }}>
                 <span className="text-gray-400">No video URL provided</span>
               </div>
             )}
@@ -291,6 +437,7 @@ export default function ComponentRenderer({
             subtitle={component.props?.subtitle || 'Banner subtitle'}
             image={component.props?.image || ''}
             height={component.props?.height || '400px'}
+            gradient={component.props?.gradient}
           />
         )
 
@@ -304,11 +451,12 @@ export default function ComponentRenderer({
         return (
           <pre
             style={{
-              backgroundColor: '#1a1a1a',
-              color: '#ffffff',
-              padding: '20px',
-              borderRadius: '8px',
+              backgroundColor: component.props?.bgColor || '#1a1a1a',
+              color: component.props?.textColor || '#ffffff',
+              padding: component.props?.padding || '20px',
+              borderRadius: component.props?.radius || '8px',
               overflow: 'auto',
+              boxShadow: getShadowStyle(component.props?.shadow),
               ...baseStyle,
             }}
             className={component.className}
@@ -328,11 +476,12 @@ export default function ComponentRenderer({
         return (
           <div
             style={{
-              backgroundColor: colors.bg,
-              borderLeft: `4px solid ${colors.border}`,
-              color: colors.text,
-              padding: '12px 16px',
-              borderRadius: '4px',
+              backgroundColor: component.props?.bgColor || colors.bg,
+              borderLeft: `4px solid ${component.props?.borderColor || colors.border}`,
+              color: component.props?.textColor || colors.text,
+              padding: component.props?.padding || '12px 16px',
+              borderRadius: component.props?.radius || '8px',
+              boxShadow: getShadowStyle(component.props?.shadow),
               ...baseStyle,
             }}
             className={component.className}
@@ -390,7 +539,7 @@ function ProductsGridComponent({ limit, columns }: { limit: number; columns: num
   return (
     <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${columns} gap-6`}>
       {products.map((product) => (
-        <div key={product.id} className="bg-white rounded-lg shadow-md p-4">
+        <div key={product.id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-4">
           <h3 className="font-semibold">{product.name}</h3>
           <p className="text-[#ff6b35] font-bold">৳{product.price}</p>
         </div>
@@ -406,11 +555,16 @@ function FeaturedProductsComponent({ limit, columns }: { limit: number; columns:
 function ProductSearchComponent({ placeholder }: { placeholder: string }) {
   return (
     <div className="max-w-md mx-auto">
+      <div className="relative">
       <input
         type="text"
         placeholder={placeholder}
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white"
+          className="w-full px-4 py-3 pl-12 border-2 border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-[#ff6b35] focus:ring-2 focus:ring-[#ff6b35]/20 transition-all"
       />
+        <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      </div>
     </div>
   )
 }
@@ -418,13 +572,28 @@ function ProductSearchComponent({ placeholder }: { placeholder: string }) {
 function ContactFormComponent({ title }: { title: string }) {
   return (
     <div className="max-w-md mx-auto">
-      <h3 className="text-xl font-bold mb-4">{title}</h3>
+      <h3 className="text-2xl font-bold mb-6 text-center">{title}</h3>
       <form className="space-y-4">
-        <input type="text" placeholder="Name" className="w-full px-4 py-2 border rounded-lg text-gray-900 bg-white" />
-        <input type="email" placeholder="Email" className="w-full px-4 py-2 border rounded-lg text-gray-900 bg-white" />
-        <textarea placeholder="Message" rows={4} className="w-full px-4 py-2 border rounded-lg text-gray-900 bg-white" />
-        <button type="submit" className="w-full bg-[#ff6b35] text-white py-2 rounded-lg">
-          Send
+        <input 
+          type="text" 
+          placeholder="Name" 
+          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-[#ff6b35] focus:ring-2 focus:ring-[#ff6b35]/20 transition-all" 
+        />
+        <input 
+          type="email" 
+          placeholder="Email" 
+          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-[#ff6b35] focus:ring-2 focus:ring-[#ff6b35]/20 transition-all" 
+        />
+        <textarea 
+          placeholder="Message" 
+          rows={4} 
+          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-[#ff6b35] focus:ring-2 focus:ring-[#ff6b35]/20 transition-all resize-none" 
+        />
+        <button 
+          type="submit" 
+          className="w-full bg-gradient-to-r from-[#ff6b35] to-[#f7931e] text-white py-3 rounded-lg font-semibold hover:shadow-lg hover:scale-105 transition-all"
+        >
+          Send Message
         </button>
       </form>
     </div>
@@ -433,15 +602,18 @@ function ContactFormComponent({ title }: { title: string }) {
 
 function NewsletterComponent({ title, placeholder }: { title: string; placeholder: string }) {
   return (
-    <div className="max-w-md mx-auto text-center">
-      <h3 className="text-xl font-bold mb-4">{title}</h3>
+    <div className="max-w-md mx-auto text-center p-8 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl">
+      <h3 className="text-2xl font-bold mb-4">{title}</h3>
+      <p className="text-gray-600 mb-6">Stay updated with our latest news and offers</p>
       <div className="flex space-x-2">
         <input
           type="email"
           placeholder={placeholder}
-          className="flex-1 px-4 py-2 border rounded-lg text-gray-900 bg-white"
+          className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-[#ff6b35] focus:ring-2 focus:ring-[#ff6b35]/20 transition-all"
         />
-        <button className="bg-[#ff6b35] text-white px-6 py-2 rounded-lg">Subscribe</button>
+        <button className="bg-gradient-to-r from-[#ff6b35] to-[#f7931e] text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg hover:scale-105 transition-all">
+          Subscribe
+        </button>
       </div>
     </div>
   )
@@ -449,26 +621,45 @@ function NewsletterComponent({ title, placeholder }: { title: string; placeholde
 
 function SliderComponent({ items }: { items: Component[] }) {
   return (
-    <div className="relative h-96 bg-gray-200 rounded-lg flex items-center justify-center">
+    <div className="relative h-96 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300">
       <span className="text-gray-400">Slider Component</span>
     </div>
   )
 }
 
-function BannerComponent({ title, subtitle, image, height }: { title: string; subtitle: string; image: string; height: string }) {
+function BannerComponent({ title, subtitle, image, height, gradient }: { title: string; subtitle: string; image: string; height: string; gradient?: string }) {
+  // Helper function to get gradient background (local copy)
+  const getGradient = (grad: string | undefined, fallback: string) => {
+    if (!grad || grad === 'none') return fallback
+    const gradients: Record<string, string> = {
+      'gradient-primary': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      'gradient-warm': 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+      'gradient-cool': 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+      'gradient-orange': 'linear-gradient(135deg, #ff6b35 0%, #f7931e 100%)',
+    }
+    return gradients[grad] || fallback
+  }
+  
+  const background = image 
+    ? `url(${image})` 
+    : (gradient && gradient !== 'none' 
+      ? getGradient(gradient, 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)')
+      : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)')
+  
   return (
     <div
-      className="relative rounded-lg flex items-center justify-center text-white"
+      className="relative rounded-lg flex items-center justify-center text-white overflow-hidden"
       style={{
         height,
-        backgroundImage: image ? `url(${image})` : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        backgroundImage: background,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }}
     >
-      <div className="text-center">
-        <h2 className="text-4xl font-bold mb-2">{title}</h2>
-        <p className="text-xl">{subtitle}</p>
+      <div className="absolute inset-0 bg-black/30"></div>
+      <div className="text-center relative z-10 px-4">
+        <h2 className="text-4xl md:text-5xl font-bold mb-2 drop-shadow-lg">{title}</h2>
+        <p className="text-xl md:text-2xl drop-shadow-md">{subtitle}</p>
       </div>
     </div>
   )
@@ -479,9 +670,14 @@ function TestimonialsComponent({ items }: { items: any[] }) {
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       {items.length > 0 ? (
         items.map((item, i) => (
-          <div key={i} className="bg-white p-6 rounded-lg shadow-md">
-            <p className="mb-4">"{item.text}"</p>
-            <p className="font-semibold">- {item.author}</p>
+          <div key={i} className="bg-white p-6 rounded-xl shadow-md hover:shadow-xl transition-shadow">
+            <div className="mb-4">
+              <svg className="w-8 h-8 text-[#ff6b35]" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.996 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.984zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z"/>
+              </svg>
+            </div>
+            <p className="mb-4 text-gray-700 italic">"{item.text}"</p>
+            <p className="font-semibold text-gray-900">- {item.author}</p>
           </div>
         ))
       ) : (
@@ -496,8 +692,8 @@ function FAQComponent({ items }: { items: any[] }) {
     <div className="space-y-4">
       {items.length > 0 ? (
         items.map((item, i) => (
-          <div key={i} className="bg-white p-4 rounded-lg shadow-md">
-            <h4 className="font-semibold mb-2">{item.question}</h4>
+          <div key={i} className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow">
+            <h4 className="font-bold text-lg mb-2 text-gray-900">{item.question}</h4>
             <p className="text-gray-600">{item.answer}</p>
           </div>
         ))
@@ -509,15 +705,18 @@ function FAQComponent({ items }: { items: any[] }) {
 }
 
 function SocialIconsComponent({ platforms, size }: { platforms: string[]; size: string }) {
-  const iconSize = size === 'lg' ? 'w-8 h-8' : size === 'sm' ? 'w-4 h-4' : 'w-6 h-6'
+  const iconSize = size === 'lg' ? 'w-10 h-10' : size === 'sm' ? 'w-6 h-6' : 'w-8 h-8'
   return (
-    <div className="flex items-center space-x-4">
+    <div className="flex items-center justify-center space-x-4">
       {platforms.map((platform) => (
-        <a key={platform} href="#" className={`${iconSize} text-gray-600 hover:text-[#ff6b35]`}>
-          {platform}
+        <a 
+          key={platform} 
+          href="#" 
+          className={`${iconSize} text-gray-600 hover:text-[#ff6b35] hover:scale-110 transition-all rounded-full bg-gray-100 hover:bg-[#ff6b35]/10 flex items-center justify-center`}
+        >
+          {platform.charAt(0).toUpperCase()}
         </a>
       ))}
     </div>
   )
 }
-

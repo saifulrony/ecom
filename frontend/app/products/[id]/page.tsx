@@ -7,6 +7,8 @@ import { FiShoppingCart, FiMinus, FiPlus, FiHeart, FiStar, FiPackage, FiTag, FiI
 import Image from 'next/image'
 import { useAuthStore } from '@/store/authStore'
 import { cartAPI } from '@/lib/api'
+import PageRenderer from '@/components/PageRenderer'
+import { usePageBuilderPage } from '@/hooks/usePageBuilderPage'
 
 interface Review {
   id: number

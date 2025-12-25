@@ -133,9 +133,6 @@ func GetProfile(c *gin.Context) {
 		return
 	}
 
-	// Log the image value for debugging
-	fmt.Printf("GetProfile: User image from DB: %s\n", user.Image)
-
 	c.JSON(http.StatusOK, gin.H{
 		"user": gin.H{
 			"id":          user.ID,
@@ -209,7 +206,7 @@ func UpdateProfile(c *gin.Context) {
 				oldPath := filepath.Join(uploadsDir, filepath.Base(user.Image))
 				if err := os.Remove(oldPath); err != nil {
 					// Log error but don't fail - old file might not exist
-					fmt.Printf("Warning: Failed to delete old image: %v\n", err)
+					// Old file might not exist, ignore error
 				}
 			}
 
@@ -300,9 +297,6 @@ func UpdateProfile(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
 		return
 	}
-
-	// Log the image value for debugging
-	fmt.Printf("UpdateProfile: Saved user image: %s\n", user.Image)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Profile updated successfully",

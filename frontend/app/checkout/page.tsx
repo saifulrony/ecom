@@ -6,6 +6,8 @@ import { cartAPI, orderAPI } from '@/lib/api'
 import { useCartStore } from '@/store/cartStore'
 import { useAuthStore } from '@/store/authStore'
 import { FiCheckCircle, FiChevronDown, FiChevronUp, FiCreditCard, FiSearch } from 'react-icons/fi'
+import PageRenderer from '@/components/PageRenderer'
+import { usePageBuilderPage } from '@/hooks/usePageBuilderPage'
 
 interface PaymentGateway {
   gateway: string
@@ -27,8 +29,14 @@ const COUNTRIES = [
 ].sort()
 
 export default function CheckoutPage() {
+  const { components: pageComponents, loading: pageLoading, hasPage } = usePageBuilderPage('checkout')
   const router = useRouter()
   const { user } = useAuthStore()
+
+  // If page builder page exists, render it instead
+  if (hasPage && !pageLoading) {
+    return <PageRenderer components={pageComponents} />
+  }
   const { items, total } = useCartStore()
   const [loading, setLoading] = useState(false)
   const [showCoupon, setShowCoupon] = useState(false)

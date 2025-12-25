@@ -8,13 +8,21 @@ import { useAuthStore } from '@/store/authStore'
 import { FiTrash2, FiMinus, FiPlus, FiShoppingBag } from 'react-icons/fi'
 import Image from 'next/image'
 import Link from 'next/link'
+import PageRenderer from '@/components/PageRenderer'
+import { usePageBuilderPage } from '@/hooks/usePageBuilderPage'
 
 export default function CartPage() {
+  const { components: pageComponents, loading: pageLoading, hasPage } = usePageBuilderPage('cart')
   const router = useRouter()
   const { user } = useAuthStore()
   const { items, total, setCart } = useCartStore()
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState<number | null>(null)
+
+  // If page builder page exists, render it instead
+  if (hasPage && !pageLoading) {
+    return <PageRenderer components={pageComponents} />
+  }
 
   useEffect(() => {
     if (!user) {

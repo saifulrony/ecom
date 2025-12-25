@@ -9,6 +9,7 @@ export type ComponentType =
   | 'divider'
   | 'card'
   | 'grid'
+  | 'column'
   | 'video'
   | 'form'
   | 'products-grid'

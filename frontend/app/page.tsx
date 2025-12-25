@@ -6,13 +6,17 @@ import ProductCard from '@/components/ProductCard'
 import ChatBox from '@/components/ChatBox'
 import Link from 'next/link'
 import { FiArrowRight, FiTag } from 'react-icons/fi'
+import PageRenderer from '@/components/PageRenderer'
+import { usePageBuilderPage } from '@/hooks/usePageBuilderPage'
 
 export default function Home() {
+  const { components: pageComponents, loading: pageLoading, hasPage, pageExists } = usePageBuilderPage('home')
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null)
 
+  // All hooks must be called before any conditional returns
   useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -26,6 +30,12 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
+    // Only fetch products if we're showing the default page (not page builder page)
+    if (hasPage && !pageLoading) {
+      setLoading(false)
+      return
+    }
+
     const fetchProducts = async () => {
       try {
         const params: any = { limit: 12 }
@@ -52,7 +62,23 @@ export default function Home() {
 
     setLoading(true)
     fetchProducts()
-  }, [selectedCategory])
+  }, [selectedCategory, hasPage, pageLoading])
+
+  // If page builder page exists and has components, render it instead (but still show ChatBox)
+  if (hasPage && !pageLoading) {
+    return (
+      <div className="min-h-screen bg-whitesmoke">
+        <PageRenderer components={pageComponents} />
+        <ChatBox />
+      </div>
+    )
+  }
+
+  // If page exists but has no components, show a message and fallback to default
+  if (pageExists && !pageLoading && !hasPage) {
+    // Still show default page but with a notice
+    console.warn('Home page exists in database but has no components. Using default page.')
+  }
 
   return (
     <div className="min-h-screen bg-whitesmoke">

@@ -57,16 +57,9 @@ func CreateOrder(c *gin.Context) {
 	var taxRateModel models.TaxRate
 	
 	// Try to get regional tax rate (most specific match first)
-	// Try city match
+	// Try city match (country + city, with no specific region)
 	if req.City != "" {
-		if err := database.DB.Where("country = ? AND region = ? AND city = ?", req.Country, req.City, req.City).First(&taxRateModel).Error; err == nil {
-			taxRate = taxRateModel.Rate
-		}
-	}
-	
-	// Try region match if city didn't match
-	if taxRate == 0 && req.City != "" {
-		if err := database.DB.Where("country = ? AND region = ? AND (city = '' OR city IS NULL)", req.Country, req.City).First(&taxRateModel).Error; err == nil {
+		if err := database.DB.Where("country = ? AND city = ? AND (region = '' OR region IS NULL)", req.Country, req.City).First(&taxRateModel).Error; err == nil {
 			taxRate = taxRateModel.Rate
 		}
 	}

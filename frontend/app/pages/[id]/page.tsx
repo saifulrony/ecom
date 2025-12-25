@@ -15,9 +15,15 @@ export default function DynamicPage() {
   useEffect(() => {
     const loadPage = async () => {
       try {
+        setLoading(true)
+        setError(null)
         // Use public API endpoint (without /admin prefix)
         const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost'
-        const response = await fetch(`http://${hostname}:10000/api/pages/${pageId}`)
+        const apiUrl = typeof window !== 'undefined' && window.location.port === '10001'
+          ? `http://${hostname}:10000/api/pages/${pageId}`
+          : `/api/pages/${pageId}`
+        
+        const response = await fetch(apiUrl)
         if (!response.ok) {
           if (response.status === 404) {
             setError('Page not found')
@@ -28,8 +34,16 @@ export default function DynamicPage() {
           return
         }
         const data = await response.json()
-        setComponents(data.components || [])
+        const pageComponents = data.components || []
+        
+        // Ensure components is an array
+        if (Array.isArray(pageComponents)) {
+          setComponents(pageComponents)
+        } else {
+          setComponents([])
+        }
       } catch (err: any) {
+        console.error('Failed to load page:', err)
         setError('Failed to load page')
       } finally {
         setLoading(false)
@@ -38,6 +52,8 @@ export default function DynamicPage() {
 
     if (pageId) {
       loadPage()
+    } else {
+      setLoading(false)
     }
   }, [pageId])
 

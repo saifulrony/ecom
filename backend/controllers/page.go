@@ -58,11 +58,15 @@ func GetPage(c *gin.Context) {
 	}
 
 	// Parse components JSON
-	var components interface{}
+	var components interface{} = []interface{}{} // Default to empty array
 	if page.Components != "" {
 		if err := json.Unmarshal([]byte(page.Components), &components); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse page components"})
 			return
+		}
+		// Ensure components is an array (not null or other type)
+		if components == nil {
+			components = []interface{}{}
 		}
 	}
 
@@ -100,11 +104,18 @@ func CreatePage(c *gin.Context) {
 		return
 	}
 
-	// Convert components to JSON
-	componentsJSON, err := json.Marshal(req.Components)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to serialize components"})
-		return
+	// Convert components to JSON - ensure it's always valid JSON
+	var componentsJSON []byte
+	var err error
+	if req.Components != nil {
+		componentsJSON, err = json.Marshal(req.Components)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to serialize components: " + err.Error()})
+			return
+		}
+	} else {
+		// Default to empty array if components is nil
+		componentsJSON, _ = json.Marshal([]interface{}{})
 	}
 
 	page := models.Page{
@@ -141,12 +152,22 @@ func UpdatePage(c *gin.Context) {
 	id := c.Param("id")
 	var page models.Page
 
-	if err := database.DB.Where("id = ? OR page_id = ?", id, id).First(&page).Error; err != nil {
+	// Try to find by page_id first (slug), then by ID
+	var err error
+	if len(id) > 0 && id[0] >= '0' && id[0] <= '9' {
+		// Looks like numeric ID
+		err = database.DB.Where("id = ?", id).First(&page).Error
+	} else {
+		// Looks like slug (page_id)
+		err = database.DB.Where("page_id = ?", id).First(&page).Error
+	}
+
+	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Page not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch page"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch page: " + err.Error()})
 		return
 	}
 
@@ -179,25 +200,37 @@ func UpdatePage(c *gin.Context) {
 	if req.Description != "" {
 		page.Description = req.Description
 	}
+	// Always update components - if nil, use empty array
 	if req.Components != nil {
 		componentsJSON, err := json.Marshal(req.Components)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to serialize components"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to serialize components: " + err.Error()})
 			return
 		}
 		page.Components = string(componentsJSON)
+	} else {
+		// If components is not provided, keep existing or set to empty array
+		if page.Components == "" {
+			componentsJSON, _ := json.Marshal([]interface{}{})
+			page.Components = string(componentsJSON)
+		}
 	}
 	if req.IsPublished != nil {
 		page.IsPublished = *req.IsPublished
 	}
 
 	if err := database.DB.Save(&page).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update page"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update page: " + err.Error()})
 		return
 	}
 
-	var components interface{}
-	json.Unmarshal([]byte(page.Components), &components)
+	var components interface{} = []interface{}{}
+	if page.Components != "" {
+		if err := json.Unmarshal([]byte(page.Components), &components); err != nil {
+			// If unmarshal fails, return empty array
+			components = []interface{}{}
+		}
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Page updated successfully",
