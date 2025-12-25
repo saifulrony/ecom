@@ -5,7 +5,7 @@ import { Component } from './types'
 import { FiTrash2, FiChevronDown, FiChevronUp, FiCode, FiLayers, FiType, FiDroplet, FiBox, FiSliders } from 'react-icons/fi'
 
 interface PropertiesPanelProps {
-  component: Component
+  component: Component | null
   onUpdate: (component: Component) => void
   onDelete: (id: string) => void
 }
@@ -13,7 +13,7 @@ interface PropertiesPanelProps {
 type TabType = 'content' | 'layout' | 'typography' | 'colors' | 'borders' | 'effects' | 'advanced'
 
 export default function PropertiesPanel({ component, onUpdate, onDelete }: PropertiesPanelProps) {
-  const [localComponent, setLocalComponent] = useState<Component>(component)
+  const [localComponent, setLocalComponent] = useState<Component | null>(component)
   const [activeTab, setActiveTab] = useState<TabType>('content')
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     spacing: true,
@@ -23,14 +23,33 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
   })
 
   useEffect(() => {
-    setLocalComponent(component)
+    if (component) {
+      setLocalComponent(component)
+    } else {
+      setLocalComponent(null)
+    }
   }, [component])
 
+  if (!component || !localComponent) {
+    return (
+      <div className="w-80 bg-white border-l border-gray-200 h-full flex items-center justify-center">
+        <div className="text-center text-gray-400 px-4">
+          <svg className="h-12 w-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          <p className="text-sm font-medium">Select a component</p>
+          <p className="text-xs mt-1">Click any component in the canvas to edit its properties</p>
+        </div>
+      </div>
+    )
+  }
+
   const updateProp = (key: string, value: any) => {
+    if (!localComponent) return
     const updated = {
       ...localComponent,
       props: {
-        ...localComponent.props,
+        ...(localComponent?.props || {}),
         [key]: value,
       },
     }
@@ -39,10 +58,11 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
   }
 
   const updateStyle = (key: string, value: any) => {
+    if (!localComponent) return
     const updated = {
       ...localComponent,
       style: {
-        ...localComponent.style || {},
+        ...(localComponent?.style || {}),
         [key]: value || undefined,
       },
     }
@@ -51,6 +71,7 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
   }
 
   const updateContent = (value: string) => {
+    if (!localComponent) return
     const updated = {
       ...localComponent,
       content: value,
@@ -64,7 +85,7 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
   }
 
   const getStyleValue = (key: string) => {
-    return localComponent.style?.[key as keyof React.CSSProperties] || ''
+    return localComponent?.style?.[key as keyof React.CSSProperties] || ''
   }
 
   // Reusable Input Components
@@ -146,13 +167,15 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
 
   // Content Tab - Component-specific properties
   const renderContentTab = () => {
+    if (!localComponent) return null
+    
     switch (component.type) {
       case 'heading':
         return (
           <div className="space-y-3">
             <InputField
               label="Text"
-              value={localComponent.props?.text || localComponent.content || ''}
+              value={localComponent?.props?.text || localComponent?.content || ''}
               onChange={(val) => {
                 updateProp('text', val)
                 updateContent(val)
@@ -160,7 +183,7 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
             />
             <SelectField
               label="Level"
-              value={localComponent.props?.level || 'h1'}
+              value={localComponent?.props?.level || 'h1'}
               onChange={(val) => updateProp('level', val)}
               options={[
                 { value: 'h1', label: 'H1' },
@@ -180,7 +203,7 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Text</label>
               <textarea
-                value={localComponent.props?.text || localComponent.content || ''}
+                value={localComponent?.props?.text || localComponent?.content || ''}
                 onChange={(e) => {
                   updateProp('text', e.target.value)
                   updateContent(e.target.value)
@@ -205,13 +228,13 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
             />
             <InputField
               label="Link"
-              value={localComponent.props?.link || '#'}
+              value={localComponent?.props?.link || '#'}
               onChange={(val) => updateProp('link', val)}
               placeholder="/page-url"
             />
             <SelectField
               label="Variant"
-              value={localComponent.props?.variant || 'primary'}
+              value={localComponent?.props?.variant || 'primary'}
               onChange={(val) => updateProp('variant', val)}
               options={[
                 { value: 'primary', label: 'Primary' },
@@ -222,7 +245,7 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
             />
             <SelectField
               label="Size"
-              value={localComponent.props?.size || 'md'}
+              value={localComponent?.props?.size || 'md'}
               onChange={(val) => updateProp('size', val)}
               options={[
                 { value: 'sm', label: 'Small' },
@@ -239,24 +262,24 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
           <div className="space-y-3">
             <InputField
               label="Image URL"
-              value={localComponent.props?.src || ''}
+              value={localComponent?.props?.src || ''}
               onChange={(val) => updateProp('src', val)}
               placeholder="https://example.com/image.jpg"
             />
             <InputField
               label="Alt Text"
-              value={localComponent.props?.alt || ''}
+              value={localComponent?.props?.alt || ''}
               onChange={(val) => updateProp('alt', val)}
             />
             <InputField
               label="Width"
-              value={localComponent.props?.width || '100%'}
+              value={localComponent?.props?.width || '100%'}
               onChange={(val) => updateProp('width', val)}
               placeholder="100% or 800px"
             />
             <InputField
               label="Height"
-              value={localComponent.props?.height || 'auto'}
+              value={localComponent?.props?.height || 'auto'}
               onChange={(val) => updateProp('height', val)}
               placeholder="auto or 600px"
             />
@@ -268,12 +291,12 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
           <div className="space-y-3">
             <InputField
               label="Padding"
-              value={localComponent.props?.padding || '40px'}
+              value={localComponent?.props?.padding || '40px'}
               onChange={(val) => updateProp('padding', val)}
             />
             <ColorPicker
               label="Background Color"
-              value={localComponent.props?.background || '#ffffff'}
+              value={localComponent?.props?.background || '#ffffff'}
               onChange={(val) => updateProp('background', val)}
             />
           </div>
@@ -284,7 +307,7 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
           <div className="space-y-3">
             <InputField
               label="Columns"
-              value={localComponent.props?.columns || 2}
+              value={localComponent?.props?.columns || 2}
               onChange={(val) => updateProp('columns', val)}
               type="number"
               min={1}
@@ -292,7 +315,7 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
             />
             <InputField
               label="Gap"
-              value={localComponent.props?.gap || '20px'}
+              value={localComponent?.props?.gap || '20px'}
               onChange={(val) => updateProp('gap', val)}
             />
             <InputField
@@ -309,7 +332,7 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
           <div className="space-y-3">
             <InputField
               label="Number of Products"
-              value={localComponent.props?.limit || 12}
+              value={localComponent?.props?.limit || 12}
               onChange={(val) => updateProp('limit', val)}
               type="number"
               min={1}
@@ -533,7 +556,7 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
       <div className="grid grid-cols-2 gap-2">
         <InputField
           label="Font Size"
-          value={localComponent.props?.fontSize || getStyleValue('fontSize')}
+          value={localComponent?.props?.fontSize || getStyleValue('fontSize')}
           onChange={(v) => {
             updateProp('fontSize', v)
             updateStyle('fontSize', v)
@@ -563,7 +586,7 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
       </div>
       <SelectField
         label="Text Align"
-        value={localComponent.props?.align || (getStyleValue('textAlign') as string) || 'left'}
+        value={localComponent?.props?.align || (getStyleValue('textAlign') as string) || 'left'}
         onChange={(v) => {
           updateProp('align', v)
           updateStyle('textAlign', v)
@@ -609,7 +632,7 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
     <div className="space-y-4">
       <ColorPicker
         label="Text Color"
-        value={localComponent.props?.color || (getStyleValue('color') as string) || '#000000'}
+        value={localComponent?.props?.color || (getStyleValue('color') as string) || '#000000'}
         onChange={(v) => {
           updateProp('color', v)
           updateStyle('color', v)
@@ -850,7 +873,7 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
           <label className="block text-xs font-medium text-gray-700 mb-1.5">Custom CSS Class</label>
           <input
             type="text"
-            value={localComponent.className || ''}
+            value={localComponent?.className || ''}
             onChange={(e) => {
               const updated = { ...localComponent, className: e.target.value }
               setLocalComponent(updated)
@@ -863,7 +886,7 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1.5">Inline Styles (JSON)</label>
           <textarea
-            value={JSON.stringify(localComponent.style || {}, null, 2)}
+            value={JSON.stringify(localComponent?.style || {}, null, 2)}
             onChange={(e) => {
               try {
                 const parsed = JSON.parse(e.target.value)

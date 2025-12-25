@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import {
   FiType,
@@ -22,6 +22,7 @@ import {
   FiCode,
   FiMessageCircle,
   FiHelpCircle,
+  FiX,
 } from 'react-icons/fi'
 import { ComponentType } from './types'
 
@@ -76,6 +77,7 @@ interface ComponentLibraryProps {
   onAddComponent: (type: ComponentType) => void
 }
 
+// Draggable Component Item
 function DraggableComponentItem({
   component,
   onAddComponent,
@@ -104,15 +106,25 @@ function DraggableComponentItem({
     <div
       ref={setNodeRef}
       style={style}
+      className="relative group"
+    >
+      {/* Component Button - Draggable Only */}
+      <div
       {...listeners}
       {...attributes}
-      onClick={() => onAddComponent(component.type)}
-      className={`flex items-center space-x-3 p-4 sm:p-6 rounded-lg border border-gray-200 bg-white hover:shadow-md hover:border-[#ff6b35] cursor-move transition-all ${
-        isDragging ? 'opacity-50' : ''
-      }`}
-    >
-      <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${component.color}`} />
-      <span className="text-sm sm:text-base font-semibold text-gray-900">{component.label}</span>
+        className="w-full flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 hover:border-indigo-500 hover:bg-indigo-50 transition-all cursor-grab active:cursor-grabbing min-h-[80px] relative select-none"
+        title={`Drag ${component.label} to canvas`}
+      >
+        <div className={`p-2 rounded-lg bg-gray-50 group-hover:bg-indigo-100 transition-colors mb-2`}>
+          <Icon className={`h-5 w-5 ${component.color}`} />
+        </div>
+        <span className="text-xs font-medium text-gray-700 group-hover:text-indigo-700 text-center line-clamp-2">
+          {component.label}
+        </span>
+        <svg className="h-4 w-4 text-gray-400 group-hover:text-indigo-600 mt-1 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+        </svg>
+      </div>
     </div>
   )
 }
@@ -120,43 +132,109 @@ function DraggableComponentItem({
 export default function ComponentLibrary({ onAddComponent }: ComponentLibraryProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
+  const [containerWidth, setContainerWidth] = useState(0)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Calculate number of columns based on container width
+  const columns = useMemo(() => {
+    if (containerWidth === 0) return 2 // Default to 2 columns
+    
+    // Minimum 2 columns, maximum 4 columns
+    // Adjust based on actual container width
+    if (containerWidth < 200) return 2      // Very narrow: 2 columns
+    if (containerWidth < 280) return 2      // Narrow: 2 columns (minimum)
+    if (containerWidth < 360) return 3      // Medium: 3 columns
+    return 4                                 // Wide: 4 columns (maximum)
+  }, [containerWidth])
+
+  // Observe container width changes
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width)
+      }
+    })
+
+    resizeObserver.observe(container)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [])
 
   const filteredComponents = useMemo(() => {
+    if (!searchQuery.trim() && selectedCategory === 'All') {
+      return availableComponents
+    }
+    
+    const query = searchQuery.toLowerCase().trim()
     return availableComponents.filter((component) => {
-      const matchesSearch = component.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        component.type.toLowerCase().includes(searchQuery.toLowerCase())
+      const matchesSearch = !query || 
+        component.label.toLowerCase().includes(query) ||
+        component.type.toLowerCase().includes(query)
       const matchesCategory = selectedCategory === 'All' || component.category === selectedCategory
       return matchesSearch && matchesCategory
     })
   }, [searchQuery, selectedCategory])
 
+  const clearSearch = () => {
+    setSearchQuery('')
+  }
+
   return (
-    <div className="w-64 bg-white border-r border-gray-200 h-full flex flex-col shadow-sm">
-      <div className="p-4 sm:p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">Components</h2>
-        <p className="text-sm sm:text-base text-gray-600 mb-4">Add components to your page</p>
+    <div 
+      ref={containerRef}
+      className="w-80 bg-white border-r border-gray-200 h-full overflow-y-auto flex flex-col flex-shrink-0"
+    >
+      <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-indigo-600 to-purple-600 flex-shrink-0">
+        <h2 className="text-white font-bold text-sm">Components</h2>
+        <p className="text-indigo-100 text-xs mt-1">Drag to canvas to add</p>
+      </div>
         
-        {/* Search */}
-        <div className="relative mb-4">
-          <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
+      {/* Search Bar */}
+      <div className="p-3 border-b border-gray-200 flex-shrink-0">
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <FiSearch className="h-4 w-4 text-gray-400" />
+          </div>
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search components..."
-            className="w-full pl-9 sm:pl-10 pr-4 py-2 text-sm sm:text-base border border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#ff6b35] focus:border-transparent"
+            className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           />
+          {searchQuery && (
+            <button
+              onClick={clearSearch}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+              title="Clear search"
+            >
+              <FiX className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        {searchQuery && (
+          <p className="text-xs text-gray-500 mt-2">
+            {filteredComponents.length} {filteredComponents.length === 1 ? 'component' : 'components'} found
+          </p>
+        )}
         </div>
 
         {/* Categories */}
+      {!searchQuery && (
+        <div className="p-3 border-b border-gray-200 flex-shrink-0">
         <div className="flex flex-wrap gap-2">
           {categories.map((category) => (
             <button
               key={category}
               onClick={() => setSelectedCategory(category)}
-              className={`px-3 py-1.5 text-xs sm:text-sm rounded-lg transition-colors font-medium ${
+                className={`px-2.5 py-1 text-xs rounded-md transition-colors font-medium ${
                 selectedCategory === category
-                  ? 'bg-[#ff6b35] text-gray-900'
+                    ? 'bg-indigo-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -165,22 +243,39 @@ export default function ComponentLibrary({ onAddComponent }: ComponentLibraryPro
           ))}
         </div>
       </div>
-
-      {/* Components List */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3">
-        {filteredComponents.length === 0 ? (
-          <div className="text-center text-gray-500 py-8 sm:py-12 text-sm sm:text-base">
-            <p>No components found</p>
-          </div>
-        ) : (
-          filteredComponents.map((component) => (
+      )}
+      
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-3">
+          {filteredComponents.length > 0 ? (
+            <div 
+              className="grid gap-2"
+              style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+            >
+              {filteredComponents.map((component) => (
             <DraggableComponentItem
               key={component.type}
               component={component}
               onAddComponent={onAddComponent}
             />
-          ))
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <FiSearch className="h-12 w-12 text-gray-300 mb-4" />
+              <p className="text-sm font-medium text-gray-900">No components found</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Try searching for "{searchQuery}"
+              </p>
+              <button
+                onClick={clearSearch}
+                className="mt-4 text-xs text-indigo-600 hover:text-indigo-700"
+              >
+                Clear search
+              </button>
+            </div>
         )}
+        </div>
       </div>
     </div>
   )

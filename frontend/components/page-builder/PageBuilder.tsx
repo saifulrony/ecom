@@ -10,6 +10,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -40,7 +41,9 @@ import {
   FiZoomOut,
   FiMinus,
   FiGrid,
+  FiPlus,
 } from 'react-icons/fi'
+import { availableComponents } from './ComponentLibrary'
 import { adminAPI } from '@/lib/api'
 
 interface PageBuilderProps {
@@ -210,7 +213,7 @@ export default function PageBuilder({
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
 
-    if (!over || active.id === over.id) {
+    if (!over) {
       setActiveId(null)
       return
     }
@@ -219,22 +222,78 @@ export default function PageBuilder({
     const overId = over.id as string
 
     // Check if dragging from library
-    if (active.data.current?.type === 'library-component') {
-      const componentType = active.data.current.componentType as ComponentType
-      const newComponent = getDefaultComponent(componentType)
-      const newComponents = [...components, newComponent]
-      setComponents(newComponents)
-      addToHistory(newComponents)
-      setSelectedComponentId(newComponent.id)
+    if (active.id.toString().startsWith('library-')) {
+      const componentType = active.data.current?.componentType as ComponentType
+      if (componentType) {
+        const newComponent = getDefaultComponent(componentType)
+        
+        // Check if dropping on a drop zone - insert at that position
+        if (over.id.toString().startsWith('drop-zone-')) {
+          const dropIndex = parseInt(over.id.toString().replace('drop-zone-', ''))
+          const newComponents = [
+            ...components.slice(0, dropIndex),
+            newComponent,
+            ...components.slice(dropIndex),
+          ]
+          setComponents(newComponents)
+          addToHistory(newComponents)
+          setSelectedComponentId(newComponent.id)
+        } else if (over.id.toString().startsWith('component-')) {
+          // Drop on existing component - insert after it
+          const targetId = over.id.toString().replace('component-', '')
+          const targetIndex = components.findIndex((c) => c.id === targetId)
+          if (targetIndex !== -1) {
+            const newComponents = [
+              ...components.slice(0, targetIndex + 1),
+              newComponent,
+              ...components.slice(targetIndex + 1),
+            ]
+            setComponents(newComponents)
+            addToHistory(newComponents)
+            setSelectedComponentId(newComponent.id)
+          }
+        } else {
+          // Drop on canvas - add to end
+          const newComponents = [...components, newComponent]
+          setComponents(newComponents)
+          addToHistory(newComponents)
+          setSelectedComponentId(newComponent.id)
+        }
+      }
     } else {
       // Reorder existing components
-      const oldIndex = components.findIndex((c) => c.id === activeId)
-      const newIndex = components.findIndex((c) => c.id === overId)
+      if (over.id.toString().startsWith('drop-zone-')) {
+        const dropIndex = parseInt(over.id.toString().replace('drop-zone-', ''))
+        const oldIndex = components.findIndex((c) => c.id === activeId)
+        if (oldIndex !== -1) {
+          const item = components[oldIndex]
+          const newItems = components.filter((_, index) => index !== oldIndex)
+          const adjustedIndex = oldIndex < dropIndex ? dropIndex - 1 : dropIndex
+          newItems.splice(adjustedIndex, 0, item)
+          setComponents(newItems)
+          addToHistory(newItems)
+        }
+      } else if (over.id.toString().startsWith('component-')) {
+        // Drop on existing component - swap positions
+        const targetId = over.id.toString().replace('component-', '')
+        const oldIndex = components.findIndex((c) => c.id === activeId)
+        const targetIndex = components.findIndex((c) => c.id === targetId)
+        
+        if (oldIndex !== -1 && targetIndex !== -1 && oldIndex !== targetIndex) {
+          const newComponents = arrayMove(components, oldIndex, targetIndex)
+          setComponents(newComponents)
+          addToHistory(newComponents)
+        }
+      } else {
+        // Fallback: try to find by direct ID match
+        const oldIndex = components.findIndex((c) => c.id === activeId)
+        const newIndex = components.findIndex((c) => c.id === overId)
 
-      if (oldIndex !== -1 && newIndex !== -1) {
-        const newComponents = arrayMove(components, oldIndex, newIndex)
-        setComponents(newComponents)
-        addToHistory(newComponents)
+        if (oldIndex !== -1 && newIndex !== -1) {
+          const newComponents = arrayMove(components, oldIndex, newIndex)
+          setComponents(newComponents)
+          addToHistory(newComponents)
+        }
       }
     }
 
@@ -458,156 +517,201 @@ export default function PageBuilder({
 
   return (
     <div className="fixed inset-0 bg-gray-100 z-50 flex flex-col">
-      {/* Toolbar */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm">
+        <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <h1 className="text-lg font-bold text-gray-900">Page Builder</h1>
+            <h1 className="text-xl font-bold text-gray-900">Page Builder</h1>
+            <div className="h-6 w-px bg-gray-300" />
+            <span className="text-sm text-gray-500">Build and customize your pages</span>
+          </div>
+          
           <div className="flex items-center space-x-2">
             <button
               onClick={handleUndo}
               disabled={historyIndex === 0}
-              className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-2 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               title="Undo"
             >
-              <FiCornerUpLeft className="w-4 h-4" />
+              <FiCornerUpLeft className="h-5 w-5 text-gray-600" />
             </button>
             <button
               onClick={handleRedo}
               disabled={historyIndex === history.length - 1}
-              className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-2 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               title="Redo"
             >
-              <FiCornerUpRight className="w-4 h-4" />
+              <FiCornerUpRight className="h-5 w-5 text-gray-600" />
             </button>
           </div>
-        </div>
-
-        <div className="flex items-center space-x-4">
-          {/* Zoom Controls */}
-          <div className="flex items-center space-x-2 border border-gray-300 rounded-lg p-1">
-            <button
-              onClick={handleZoomOut}
-              className="p-1.5 rounded hover:bg-gray-100"
-              title="Zoom Out"
-            >
-              <FiZoomOut className="w-4 h-4" />
-            </button>
-            <span className="text-sm text-gray-700 min-w-[60px] text-center">{Math.round(zoom * 100)}%</span>
-            <button
-              onClick={handleZoomIn}
-              className="p-1.5 rounded hover:bg-gray-100"
-              title="Zoom In"
-            >
-              <FiZoomIn className="w-4 h-4" />
-            </button>
-            <button
-              onClick={handleZoomReset}
-              className="p-1.5 rounded hover:bg-gray-100"
-              title="Reset Zoom"
-            >
-              <FiMinus className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Ruler & Grid Toggle */}
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setShowRulers(!showRulers)}
-              className={`p-2 rounded ${showRulers ? 'bg-[#ff6b35] text-white' : 'hover:bg-gray-100'}`}
-              title="Toggle Rulers"
-            >
-              <FiMaximize2 className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setSnapToGrid(!snapToGrid)}
-              className={`p-2 rounded ${snapToGrid ? 'bg-[#ff6b35] text-white' : 'hover:bg-gray-100'}`}
-              title="Snap to Grid"
-            >
-              <FiGrid className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Device View Toggle */}
-          <div className="flex items-center space-x-2 border border-gray-300 rounded-lg p-1">
+          <div className="h-6 w-px bg-gray-300" />
+          <div className="flex items-center space-x-1 bg-gray-100 rounded-lg p-1">
             <button
               onClick={() => setDeviceView('desktop')}
-              className={`p-1.5 rounded ${deviceView === 'desktop' ? 'bg-[#ff6b35] text-white' : 'text-gray-600'}`}
-              title="Desktop"
+              className={`p-2 rounded transition-colors ${
+                deviceView === 'desktop' ? 'bg-white shadow-sm' : 'hover:bg-gray-200'
+              }`}
+              title="Desktop View"
             >
-              <FiMaximize2 className="w-4 h-4" />
+              <FiMaximize2 className="h-5 w-5 text-gray-600" />
             </button>
             <button
               onClick={() => setDeviceView('tablet')}
-              className={`p-1.5 rounded ${deviceView === 'tablet' ? 'bg-[#ff6b35] text-white' : 'text-gray-600'}`}
-              title="Tablet"
+              className={`p-2 rounded transition-colors ${
+                deviceView === 'tablet' ? 'bg-white shadow-sm' : 'hover:bg-gray-200'
+              }`}
+              title="Tablet View"
             >
-              <FiMinimize2 className="w-4 h-4" />
+              <FiMinimize2 className="h-5 w-5 text-gray-600" />
             </button>
             <button
               onClick={() => setDeviceView('mobile')}
-              className={`p-1.5 rounded ${deviceView === 'mobile' ? 'bg-[#ff6b35] text-white' : 'text-gray-600'}`}
-              title="Mobile"
+              className={`p-2 rounded transition-colors ${
+                deviceView === 'mobile' ? 'bg-white shadow-sm' : 'hover:bg-gray-200'
+              }`}
+              title="Mobile View"
             >
-              <FiMinimize2 className="w-4 h-4" />
+              <FiMinimize2 className="h-5 w-5 text-gray-600" />
             </button>
           </div>
-
+          <div className="h-6 w-px bg-gray-300" />
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setShowRulers(!showRulers)}
+              className={`px-3 py-2 rounded transition-colors flex items-center space-x-1 ${
+                showRulers 
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+              title={showRulers ? "Hide Rulers" : "Show Rulers"}
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span className="text-xs font-medium">{showRulers ? 'Rulers On' : 'Rulers Off'}</span>
+            </button>
+            <button
+              onClick={() => setShowGuides(!showGuides)}
+              className={`p-2 rounded transition-colors ${
+                showGuides 
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+              title={showGuides ? "Hide Alignment Guides" : "Show Alignment Guides"}
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setSnapToGrid(!snapToGrid)}
+              className={`p-2 rounded transition-colors ${
+                snapToGrid 
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+              title={snapToGrid ? "Disable Grid" : "Enable Grid"}
+            >
+              <FiGrid className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="h-6 w-px bg-gray-300" />
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleZoomOut}
+              className="p-2 rounded transition-colors hover:bg-gray-200 text-gray-600"
+              title="Zoom Out"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+              </svg>
+            </button>
+            <span className="text-sm text-gray-600 min-w-[3rem] text-center">
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              onClick={handleZoomIn}
+              className="p-2 rounded transition-colors hover:bg-gray-200 text-gray-600"
+              title="Zoom In"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+            </button>
+            <button
+              onClick={handleZoomReset}
+              className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+              title="Reset Zoom"
+            >
+              Reset
+            </button>
+          </div>
+          <div className="h-6 w-px bg-gray-300" />
+          <div className="flex items-center space-x-2">
           <button
             onClick={() => setPreviewMode(!previewMode)}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center space-x-2"
+              className="px-3 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2"
           >
-            <FiEye className="w-4 h-4" />
+              <FiEye className="h-4 w-4" />
             <span>{previewMode ? 'Edit' : 'Preview'}</span>
           </button>
-
           <button
             onClick={handleExport}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center space-x-2"
+              className="px-3 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2"
           >
-            <FiDownload className="w-4 h-4" />
+              <FiDownload className="h-4 w-4" />
             <span>Export</span>
           </button>
-
           <button
             onClick={handleImport}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center space-x-2"
+              className="px-3 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2"
           >
-            <FiUpload className="w-4 h-4" />
+              <FiUpload className="h-4 w-4" />
             <span>Import</span>
           </button>
-
           <button
             onClick={() => setShowSaveModal(true)}
-            className="px-4 py-2 bg-[#ff6b35] text-white rounded-lg hover:bg-[#ff8c5a] flex items-center space-x-2"
+              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors flex items-center space-x-2"
           >
-            <FiSave className="w-4 h-4" />
+              <FiSave className="h-4 w-4" />
             <span>Save Page</span>
           </button>
 
           {onClose && (
             <button
               onClick={onClose}
-              className="p-2 rounded hover:bg-gray-100"
+                className="p-2 rounded hover:bg-gray-100 transition-colors"
+                title="Close"
             >
-              <FiX className="w-5 h-5" />
+                <FiX className="h-5 w-5 text-gray-600" />
             </button>
           )}
         </div>
       </div>
+      </header>
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Component Library */}
-        {!previewMode && <ComponentLibrary onAddComponent={handleAddComponent} />}
+      {/* Main Content */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="flex flex-1 overflow-hidden relative">
+          {/* Component Library */}
+          {!previewMode && (
+            <div className="bg-white border-r border-gray-200 flex-shrink-0 relative z-10">
+              <ComponentLibrary onAddComponent={handleAddComponent} />
+            </div>
+          )}
 
-        {/* Canvas */}
-        <div className="flex-1 overflow-auto bg-gray-200 p-8 relative" ref={canvasRef}>
+          {/* Canvas */}
           <div 
-            className="mx-auto bg-white shadow-lg relative" 
+            ref={canvasRef}
+            className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-100 relative flex items-start justify-center"
             style={{ 
-              width: getCanvasWidth(), 
-              minHeight: '100vh',
-              transform: `scale(${zoom})`,
-              transformOrigin: 'top center',
+              minHeight: 0,
+              padding: '16px',
             }}
           >
             {/* Ruler System */}
@@ -621,83 +725,118 @@ export default function PageBuilder({
                 gridSize={10}
               />
             )}
-
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragStart={handleDragStart}
-              onDragEnd={handleDragEnd}
+            <div
+              className="bg-white shadow-lg transition-all duration-300 relative flex flex-col"
+              style={{
+                width: getCanvasWidth(),
+                minHeight: 'calc(100vh - 180px)',
+                transform: `scale(${zoom})`,
+                transformOrigin: 'top center',
+                marginTop: showRulers ? '20px' : '0',
+                marginLeft: showRulers ? '20px' : '0',
+                flexShrink: 0,
+                maxWidth: '100%',
+                position: 'relative',
+                zIndex: 1,
+              }}
             >
               <SortableContext items={components.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-                <div className="p-8" style={{ marginTop: showRulers ? '20px' : '0', marginLeft: showRulers ? '20px' : '0' }}>
+                <div className="space-y-0 flex-1 p-8">
                   {components.length === 0 ? (
-                    <div className="text-center py-20 text-gray-400">
-                      <p className="text-lg mb-2">Start building your page</p>
-                      <p className="text-sm">Drag components from the left sidebar or click to add</p>
+                    <div className="relative">
+                      <DropZone id="drop-zone-0" index={0} />
+                      <div className="flex flex-col items-center justify-center h-96 text-gray-400 pointer-events-none absolute inset-0">
+                        <FiPlus className="h-16 w-16 mb-4 text-gray-300" />
+                        <p className="text-lg font-medium">Start building your page</p>
+                        <p className="text-sm">Drag components from the left panel or click to add</p>
+                      </div>
                     </div>
                   ) : (
-                    components.map((component, index) => (
-                      <React.Fragment key={component.id}>
-                        <DropZone id={`drop-${index}`} index={index} />
-                        <SortableComponent
-                          component={component}
-                          isSelected={selectedComponentId === component.id}
-                          isHovered={hoveredComponentId === component.id}
-                          onClick={() => setSelectedComponentId(component.id)}
-                          onMouseEnter={() => setHoveredComponentId(component.id)}
-                          onMouseLeave={() => setHoveredComponentId(null)}
-                          onContextMenu={(e) => handleContextMenu(e, component.id)}
-                          onUpdate={handleUpdateComponent}
-                          onDelete={handleDeleteComponent}
-                          previewMode={previewMode}
-                        />
-                      </React.Fragment>
-                    ))
+                    <>
+                      {/* Drop zone at the beginning */}
+                      <DropZone id="drop-zone-0" index={0} />
+                      {components.map((component, index) => (
+                        <React.Fragment key={component.id}>
+                          <div data-component-id={component.id} data-selected={selectedComponentId === component.id ? 'true' : 'false'}>
+                            <SortableComponent
+                              component={component}
+                              isSelected={selectedComponentId === component.id}
+                              isHovered={hoveredComponentId === component.id}
+                              onClick={() => setSelectedComponentId(component.id)}
+                              onMouseEnter={() => setHoveredComponentId(component.id)}
+                              onMouseLeave={() => setHoveredComponentId(null)}
+                              onContextMenu={(e) => handleContextMenu(e, component.id)}
+                              onUpdate={handleUpdateComponent}
+                              onDelete={handleDeleteComponent}
+                              previewMode={previewMode}
+                            />
+                          </div>
+                          {/* Drop zone after each component */}
+                          <DropZone id={`drop-zone-${index + 1}`} index={index + 1} />
+                        </React.Fragment>
+                      ))}
+                    </>
                   )}
-                  {components.length > 0 && <DropZone id={`drop-${components.length}`} index={components.length} />}
                 </div>
               </SortableContext>
-
-              <DragOverlay>
-                {activeId ? (
-                  <div className="bg-white border-2 border-[#ff6b35] rounded-lg p-4 shadow-lg">
-                    Dragging...
-                  </div>
-                ) : null}
-              </DragOverlay>
-            </DndContext>
+            </div>
           </div>
 
-          {/* Context Menu */}
-          {contextMenu && (
-            <ContextMenu
-              x={contextMenu.x}
-              y={contextMenu.y}
-              onClose={() => setContextMenu(null)}
-              onEdit={() => {
-                setSelectedComponentId(contextMenu.componentId)
-                setContextMenu(null)
-              }}
-              onDelete={() => handleDeleteComponent(contextMenu.componentId)}
-              onDuplicate={() => handleDuplicate(contextMenu.componentId)}
-              onCopy={() => handleCopy(contextMenu.componentId)}
-              onMoveUp={() => handleMoveUp(contextMenu.componentId)}
-              onMoveDown={() => handleMoveDown(contextMenu.componentId)}
-              canMoveUp={components.findIndex((c) => c.id === contextMenu.componentId) > 0}
-              canMoveDown={components.findIndex((c) => c.id === contextMenu.componentId) < components.length - 1}
-            />
+          {/* Properties Panel */}
+          {!previewMode && (
+            <div className="bg-white border-l border-gray-200 flex-shrink-0 relative z-10">
+              <PropertiesPanel
+                component={selectedComponent || null}
+                onUpdate={handleUpdateComponent}
+                onDelete={handleDeleteComponent}
+              />
+            </div>
           )}
         </div>
 
-        {/* Properties Panel */}
-        {!previewMode && selectedComponent && (
-          <PropertiesPanel
-            component={selectedComponent}
-            onUpdate={handleUpdateComponent}
-            onDelete={handleDeleteComponent}
-          />
-        )}
-      </div>
+        <DragOverlay>
+          {activeId ? (
+            activeId.toString().startsWith('library-') ? (
+              (() => {
+                const componentType = activeId.toString().replace('library-', '') as ComponentType;
+                const componentInfo = availableComponents.find(c => c.type === componentType);
+                if (!componentInfo) return null;
+                const Icon = componentInfo.icon;
+                return (
+                  <div className="bg-white border-2 border-indigo-500 rounded-lg shadow-lg flex flex-col items-center justify-center p-3 min-w-[120px] min-h-[100px]">
+                    <div className="p-2 rounded-lg bg-indigo-50 mb-2">
+                      <Icon className={`h-6 w-6 ${componentInfo.color}`} />
+                    </div>
+                    <span className="text-sm font-medium text-gray-700 text-center">
+                      {componentInfo.label}
+                    </span>
+                  </div>
+                );
+              })()
+            ) : null
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          onEdit={() => {
+            setSelectedComponentId(contextMenu.componentId)
+            setContextMenu(null)
+          }}
+          onDelete={() => handleDeleteComponent(contextMenu.componentId)}
+          onDuplicate={() => handleDuplicate(contextMenu.componentId)}
+          onCopy={() => handleCopy(contextMenu.componentId)}
+          onMoveUp={() => handleMoveUp(contextMenu.componentId)}
+          onMoveDown={() => handleMoveDown(contextMenu.componentId)}
+          canMoveUp={components.findIndex((c) => c.id === contextMenu.componentId) > 0}
+          canMoveDown={components.findIndex((c) => c.id === contextMenu.componentId) < components.length - 1}
+        />
+      )}
 
       {/* Save Modal */}
       {showSaveModal && (
@@ -786,6 +925,11 @@ function SortableComponent({
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id: component.id,
   })
+  
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({
+    id: `component-${component.id}`,
+  })
+  
   const componentRef = useRef<HTMLDivElement>(null)
   const isResizing = useRef(false)
   const resizeDirection = useRef<string | null>(null)
@@ -793,6 +937,8 @@ function SortableComponent({
   const startY = useRef(0)
   const startWidth = useRef(0)
   const startHeight = useRef(0)
+  const startLeft = useRef(0)
+  const startTop = useRef(0)
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -807,11 +953,15 @@ function SortableComponent({
     isResizing.current = true
     resizeDirection.current = direction
     const rect = componentRef.current?.getBoundingClientRect()
-    if (rect) {
+    if (rect && componentRef.current) {
       startX.current = e.clientX
       startY.current = e.clientY
       startWidth.current = rect.width
       startHeight.current = rect.height
+      // Get current left/top position (either from style or computed)
+      const computedStyle = window.getComputedStyle(componentRef.current)
+      startLeft.current = parseFloat(computedStyle.left) || 0
+      startTop.current = parseFloat(computedStyle.top) || 0
     }
     document.addEventListener('mousemove', handleResize, { passive: false })
     document.addEventListener('mouseup', handleResizeEnd)
@@ -828,18 +978,22 @@ function SortableComponent({
     
     let newWidth = startWidth.current
     let newHeight = startHeight.current
+    let newLeft = startLeft.current
+    let newTop = startTop.current
 
     if (direction.includes('right')) {
       newWidth = startWidth.current + deltaX
     }
     if (direction.includes('left')) {
       newWidth = startWidth.current - deltaX
+      newLeft = startLeft.current + deltaX
     }
     if (direction.includes('bottom')) {
       newHeight = startHeight.current + deltaY
     }
     if (direction.includes('top')) {
       newHeight = startHeight.current - deltaY
+      newTop = startTop.current + deltaY
     }
 
     // Apply min constraints
@@ -847,39 +1001,53 @@ function SortableComponent({
     newHeight = Math.max(50, newHeight)
 
     // Apply styles directly to DOM for visual feedback during drag (no state update)
-    const renderElement = componentRef.current?.querySelector('[data-component-content]') as HTMLElement
-    if (renderElement) {
-      renderElement.style.width = `${newWidth}px`
-      renderElement.style.height = `${newHeight}px`
-      renderElement.style.transition = 'none'
+    if (componentRef.current) {
+      componentRef.current.style.width = `${newWidth}px`
+      if (newHeight > 50) {
+        componentRef.current.style.height = `${newHeight}px`
+      }
+      if (direction.includes('left')) {
+        componentRef.current.style.left = `${newLeft}px`
+        componentRef.current.style.position = 'relative'
+      }
+      if (direction.includes('top')) {
+        componentRef.current.style.top = `${newTop}px`
+        componentRef.current.style.position = 'relative'
+      }
+      componentRef.current.style.transition = 'none'
     }
   }
 
   const handleResizeEnd = () => {
     // Update component state only on mouse release (drag and release)
     if (componentRef.current) {
-      const renderElement = componentRef.current.querySelector('[data-component-content]') as HTMLElement
-      if (renderElement) {
-        const finalWidth = renderElement.offsetWidth
-        const finalHeight = renderElement.offsetHeight
-        
-        // Clean up inline styles
-        renderElement.style.transition = ''
-        renderElement.style.width = ''
-        renderElement.style.height = ''
-        
-        // Update component state with final dimensions
-        const currentStyle = component.style || {}
-        const updatedComponent = {
-          ...component,
-          style: {
-            ...currentStyle,
-            width: `${finalWidth}px`,
-            height: `${finalHeight}px`,
-          },
-        }
-        onUpdate(updatedComponent)
+      const finalWidth = componentRef.current.offsetWidth
+      const finalHeight = componentRef.current.offsetHeight
+      const computedStyle = window.getComputedStyle(componentRef.current)
+      const finalLeft = parseFloat(computedStyle.left) || 0
+      const finalTop = parseFloat(computedStyle.top) || 0
+      
+      // Clean up inline styles
+      componentRef.current.style.transition = ''
+      componentRef.current.style.width = ''
+      componentRef.current.style.height = ''
+      componentRef.current.style.left = ''
+      componentRef.current.style.top = ''
+      componentRef.current.style.position = ''
+      
+      // Update component state with final dimensions
+      const currentStyle = component.style || {}
+      const updatedComponent = {
+        ...component,
+        style: {
+          ...currentStyle,
+          width: `${finalWidth}px`,
+          ...(finalHeight > 50 ? { height: `${finalHeight}px` } : {}),
+          ...(resizeDirection.current?.includes('left') && finalLeft !== 0 ? { left: `${finalLeft}px` } : {}),
+          ...(resizeDirection.current?.includes('top') && finalTop !== 0 ? { top: `${finalTop}px` } : {}),
+        },
       }
+      onUpdate(updatedComponent)
     }
     
     isResizing.current = false
@@ -895,6 +1063,12 @@ function SortableComponent({
       document.removeEventListener('mouseup', handleResizeEnd)
     }
   }, [])
+
+  // Combine refs for both sortable and droppable
+  const combinedRef = (node: HTMLDivElement | null) => {
+    setNodeRef(node)
+    setDroppableRef(node)
+  }
 
   const ResizeHandle = ({ position }: { position: string }) => (
     <div
@@ -916,15 +1090,18 @@ function SortableComponent({
 
   return (
       <div
-        ref={setNodeRef}
-        style={style}
+        ref={combinedRef}
         {...attributes}
-        className={`relative mb-2 ${previewMode ? '' : 'group'}`}
+        className={`relative mb-2 ${previewMode ? '' : 'group'} ${isOver ? 'bg-red-50/50' : ''}`}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
         onContextMenu={onContextMenu}
         data-component-id={component.id}
         data-selected={isSelected}
+        style={{
+          ...style,
+          boxShadow: isOver ? '0 0 0 4px rgba(239, 68, 68, 0.5)' : 'none',
+        }}
       >
       {!previewMode && (
         <div
@@ -939,7 +1116,13 @@ function SortableComponent({
           isSelected && !previewMode ? 'ring-2 ring-[#ff6b35] ring-offset-2' : ''
         } ${isHovered && !previewMode ? 'ring-2 ring-blue-300 ring-offset-2' : ''}`}
         onClick={onClick}
-        style={isResizing.current ? { transition: 'none' } : {}}
+        style={{
+          ...(component.style?.width ? { width: component.style.width } : {}),
+          ...(component.style?.height ? { height: component.style.height } : {}),
+          ...(component.style?.left ? { left: component.style.left, position: 'relative' } : {}),
+          ...(component.style?.top ? { top: component.style.top, position: 'relative' } : {}),
+          ...(isResizing.current ? { transition: 'none' } : {}),
+        }}
       >
         <ComponentRenderer
           component={component}
