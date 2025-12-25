@@ -111,9 +111,43 @@ export default function OrderDetailPage() {
             </h3>
             <div className="space-y-2 text-gray-600">
               <p>Items: {order.items.length}</p>
-              <p className="text-xl font-bold text-[#ff6b35]">
-                Total: ৳{order.total.toFixed(2)}
-              </p>
+              {order.subtotal !== undefined && (
+                <div className="space-y-1 pt-2 border-t border-gray-200">
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span className="font-semibold">৳{order.subtotal.toFixed(2)}</span>
+                  </div>
+                  {order.discount !== undefined && order.discount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Discount:</span>
+                      <span className="font-semibold">-৳{order.discount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {order.tax !== undefined && order.tax > 0 && (
+                    <div className="flex justify-between">
+                      <span>Tax {order.tax_rate ? `(${order.tax_rate.toFixed(2)}%)` : ''}:</span>
+                      <span className="font-semibold">৳{order.tax.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {order.shipping !== undefined && (
+                    <div className="flex justify-between">
+                      <span>Shipping:</span>
+                      <span className="font-semibold">
+                        {order.shipping > 0 ? `৳${order.shipping.toFixed(2)}` : 'Free'}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-xl font-bold text-[#ff6b35] pt-2 border-t border-gray-200">
+                    <span>Total:</span>
+                    <span>৳{order.total.toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+              {order.subtotal === undefined && (
+                <p className="text-xl font-bold text-[#ff6b35] pt-2">
+                  Total: ৳{order.total.toFixed(2)}
+                </p>
+              )}
             </div>
           </div>
         </div>

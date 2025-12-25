@@ -153,7 +153,7 @@ export default function ReportsSupportsPage() {
         <select
           value={dateRange}
           onChange={(e) => setDateRange(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ff6b35]"
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ff6b35] text-gray-900 bg-white"
         >
           <option value="7">Last 7 Days</option>
           <option value="30">Last 30 Days</option>
@@ -344,7 +344,7 @@ export default function ReportsSupportsPage() {
             <h3 className="text-xl font-semibold text-gray-700 mb-2">Ticket System Not Available</h3>
             <p className="text-sm">The ticket system is not currently implemented. Only chat support is available.</p>
           </div>
-        </div>
+          </div>
       )}
     </div>
   )

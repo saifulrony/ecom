@@ -90,11 +90,21 @@ export default function AdminHeader({ onMenuToggle }: { onMenuToggle?: () => voi
               onClick={() => setShowUserMenu(!showUserMenu)}
               className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100"
             >
+              {user?.image ? (
+                <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-gray-200">
+                  <img
+                    src={user.image.startsWith('http') ? user.image : `http://192.168.10.203:10000${user.image}`}
+                    alt={user?.name || 'Profile'}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
               <div className="w-8 h-8 bg-[#ff6b35] rounded-full flex items-center justify-center">
                 <span className="text-gray-900 text-sm font-semibold">
                   {user?.name?.charAt(0).toUpperCase() || 'A'}
                 </span>
               </div>
+              )}
               <div className="hidden md:block text-left">
                 <p className="text-sm font-medium text-gray-900">{user?.name || 'Admin'}</p>
                 <p className="text-xs text-gray-500 capitalize">{user?.role || 'admin'}</p>

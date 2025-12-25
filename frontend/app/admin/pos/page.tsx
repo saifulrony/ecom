@@ -260,7 +260,8 @@ export default function POSPage() {
     
     if (existingItem) {
       // Increase quantity if already in cart
-      if (existingItem.quantity < product.stock) {
+      const availableStock = stockType === 'showroom' ? (product.pos_stock ?? 0) : product.stock
+      if (existingItem.quantity < availableStock) {
         setCart(cart.map(item =>
           item.product_id === product.id
             ? { ...item, quantity: item.quantity + 1 }
@@ -269,7 +270,8 @@ export default function POSPage() {
       }
     } else {
       // Add new item to cart
-      if (product.stock > 0) {
+      const availableStock = stockType === 'showroom' ? (product.pos_stock ?? 0) : product.stock
+      if (availableStock > 0) {
         setCart([...cart, {
           product_id: product.id,
           product,
@@ -287,7 +289,8 @@ export default function POSPage() {
         if (newQuantity <= 0) {
           return null
         }
-        if (newQuantity > item.product.stock) {
+        const availableStock = stockType === 'showroom' ? (item.product.pos_stock ?? 0) : item.product.stock
+        if (newQuantity > availableStock) {
           return item
         }
         return { ...item, quantity: newQuantity }
@@ -504,6 +507,7 @@ export default function POSPage() {
           reference: p.reference || undefined,
         })),
         notes: customerName !== 'Walk-in Customer' ? `Customer: ${customerName}${customerPhone ? `, Phone: ${customerPhone}` : ''}` : undefined,
+        stock_type: stockType, // Pass stock type to backend
       }
 
       // Debug: Log payments being sent
@@ -576,7 +580,10 @@ export default function POSPage() {
                   key={product.id}
                   onClick={() => addToCart(product)}
                   className={`bg-white rounded-lg border-2 cursor-pointer transition-all hover:shadow-md ${
-                    product.stock > 0 ? 'border-gray-200 hover:border-[#ff6b35]' : 'border-red-200 opacity-50'
+                    (() => {
+                      const availableStock = stockType === 'showroom' ? (product.pos_stock ?? 0) : product.stock
+                      return availableStock > 0 ? 'border-gray-200 hover:border-[#ff6b35]' : 'border-red-200 opacity-50'
+                    })()
                   }`}
                 >
                   <div className="relative aspect-square bg-gray-100 rounded-t-lg overflow-hidden">
@@ -596,8 +603,11 @@ export default function POSPage() {
                   <div className="p-2">
                     <h3 className="font-semibold text-gray-900 text-xs mb-0.5 line-clamp-2">{product.name}</h3>
                     <p className="text-sm font-bold text-[#ff6b35]">৳{product.price.toFixed(2)}</p>
-                    <p className={`text-[10px] mt-0.5 ${product.stock > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      Stock: {product.stock}
+                    <p className={`text-[10px] mt-0.5 ${(() => {
+                      const availableStock = stockType === 'showroom' ? (product.pos_stock ?? 0) : product.stock
+                      return availableStock > 0 ? 'text-green-600' : 'text-red-600'
+                    })()}`}>
+                      Stock: {stockType === 'showroom' ? (product.pos_stock ?? 0) : product.stock}
                     </p>
                   </div>
                 </div>
@@ -673,7 +683,7 @@ export default function POSPage() {
                               <button
                                 onClick={() => updateQuantity(item.product_id, 1)}
                                 className="px-1.5 py-1 hover:bg-gray-100 rounded-r transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                disabled={item.quantity >= item.product.stock}
+                                disabled={item.quantity >= (stockType === 'showroom' ? (item.product.pos_stock ?? 0) : item.product.stock)}
                               >
                                 <FiPlus className="w-3.5 h-3.5 text-gray-700" />
                               </button>

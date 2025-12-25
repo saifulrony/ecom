@@ -10,6 +10,7 @@ import (
 	"ecom-backend/models"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // AdminDashboardStats returns dashboard statistics
@@ -55,12 +56,53 @@ func GetCustomers(c *gin.Context) {
 	c.JSON(http.StatusOK, customers)
 }
 
+// GetCustomer returns a single customer with their orders and stats (admin only)
+func GetCustomer(c *gin.Context) {
+	customerID := c.Param("id")
+	var customer models.User
+	
+	if err := database.DB.Where("id = ? AND role = ?", customerID, "user").First(&customer).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Customer not found"})
+		return
+	}
+
+	// Get customer orders
+	var orders []models.Order
+	database.DB.Where("user_id = ?", customer.ID).
+		Preload("Items.Product").
+		Order("created_at DESC").
+		Find(&orders)
+
+	// Calculate stats
+	var ordersCount int64
+	var totalSpent float64
+	database.DB.Model(&models.Order{}).
+		Where("user_id = ?", customer.ID).
+		Count(&ordersCount)
+	database.DB.Model(&models.Order{}).
+		Where("user_id = ?", customer.ID).
+		Select("COALESCE(SUM(total), 0)").
+		Scan(&totalSpent)
+
+	c.JSON(http.StatusOK, gin.H{
+		"customer": customer,
+		"orders": orders,
+		"stats": gin.H{
+			"orders_count": ordersCount,
+			"total_spent":  totalSpent,
+		},
+	})
+}
+
 // GetChats returns all chat sessions with their messages (admin only)
 func GetChats(c *gin.Context) {
 	var chats []models.Chat
 	
-	// Preload user, support staff, and messages
-	query := database.DB.Preload("User").Preload("SupportStaff").Preload("Messages").
+	// Preload user, support staff, and messages (order messages by created_at ASC to get most recent last in slice)
+	query := database.DB.Preload("User").Preload("SupportStaff").
+		Preload("Messages", func(db *gorm.DB) *gorm.DB {
+			return db.Order("created_at ASC")
+		}).
 		Order("updated_at DESC")
 	
 	// Filter by status if provided
@@ -79,6 +121,8 @@ func GetChats(c *gin.Context) {
 		UserID          *uint     `json:"user_id"`
 		UserName        string    `json:"user_name"`
 		UserEmail       string    `json:"user_email"`
+		GuestName       string    `json:"guest_name"`
+		GuestEmail      string    `json:"guest_email"`
 		Status          string    `json:"status"`
 		SupportStaffID  *uint     `json:"support_staff_id"`
 		SupportStaffName string   `json:"support_staff_name"`
@@ -96,6 +140,8 @@ func GetChats(c *gin.Context) {
 			UserID: chat.UserID,
 			Status: chat.Status,
 			SupportStaffID: chat.SupportStaffID,
+			GuestName: chat.GuestName,
+			GuestEmail: chat.GuestEmail,
 			CreatedAt: chat.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 			MessageCount: len(chat.Messages),
 		}
@@ -104,8 +150,17 @@ func GetChats(c *gin.Context) {
 			response.UserName = chat.User.Name
 			response.UserEmail = chat.User.Email
 		} else {
-			response.UserName = "Anonymous"
-			response.UserEmail = "N/A"
+			// Use guest info if available, otherwise show Anonymous
+			if chat.GuestName != "" {
+				response.UserName = chat.GuestName
+			} else {
+				response.UserName = "Anonymous"
+			}
+			if chat.GuestEmail != "" {
+				response.UserEmail = chat.GuestEmail
+			} else {
+				response.UserEmail = "N/A"
+			}
 		}
 
 		if chat.SupportStaff != nil {

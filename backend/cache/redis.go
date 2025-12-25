@@ -107,6 +107,14 @@ func GetInt(key string) (int64, error) {
 	return Client.Get(ctx, key).Int64()
 }
 
+// GetTTL gets the time-to-live (TTL) of a key
+func GetTTL(key string) (time.Duration, error) {
+	if Client == nil {
+		return 0, fmt.Errorf("redis not available")
+	}
+	return Client.TTL(ctx, key).Result()
+}
+
 // Helper function to get environment variables
 func getEnv(key, defaultValue string) string {
 	value := os.Getenv(key)

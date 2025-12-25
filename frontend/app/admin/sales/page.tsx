@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { FiDollarSign, FiTrendingUp, FiShoppingCart, FiCalendar, FiDownload } from 'react-icons/fi'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { useAuthStore } from '@/store/authStore'
 import { adminAPI } from '@/lib/api'
 
@@ -11,7 +12,9 @@ export default function AdminSalesPage() {
   const router = useRouter()
   const { user, token } = useAuthStore()
   const [salesData, setSalesData] = useState<any>(null)
+  const [chartData, setChartData] = useState<Array<{ date: string; sales: number }>>([])
   const [loading, setLoading] = useState(true)
+  const [loadingChart, setLoadingChart] = useState(true)
   const [dateRange, setDateRange] = useState('30d')
 
   useEffect(() => {
@@ -25,12 +28,18 @@ export default function AdminSalesPage() {
 
   const fetchSalesData = async () => {
     try {
-      const response = await adminAPI.getDashboardStats()
-      setSalesData(response.data)
+      const days = dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : dateRange === '90d' ? 90 : 365
+      const [statsRes, chartRes] = await Promise.all([
+        adminAPI.getDashboardStats(),
+        adminAPI.getSalesChartData(days),
+      ])
+      setSalesData(statsRes.data)
+      setChartData(chartRes.data.data || [])
     } catch (error) {
       console.error('Failed to fetch sales data:', error)
     } finally {
       setLoading(false)
+      setLoadingChart(false)
     }
   }
 
@@ -137,27 +146,40 @@ export default function AdminSalesPage() {
       {/* Sales Chart */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Sales Overview</h2>
-        <div className="h-64 flex items-center justify-center border-2 border-dashed border-gray-300 rounded-lg">
-          <div className="text-center w-full">
-            <p className="text-gray-500 mb-4">Revenue Trend ({dateRange})</p>
-            <div className="grid grid-cols-12 gap-1 max-w-4xl mx-auto">
-              {[...Array(12)].map((_, i) => {
-                const height = Math.random() * 100 + 20
-                return (
-                  <div key={i} className="flex flex-col items-center">
-                    <div 
-                      className="w-full bg-[#ff6b35] rounded-t min-h-[20px]"
-                      style={{ height: `${height}%` }}
-                      title={`৳${(Math.random() * 10000 + 1000).toFixed(0)}`}
-                    ></div>
-                    <span className="text-xs text-gray-500 mt-1">{i + 1}</span>
-                  </div>
-                )
-              })}
-            </div>
-            <p className="text-xs text-gray-400 mt-4">Monthly revenue breakdown</p>
+        {loadingChart ? (
+          <div className="h-64 flex items-center justify-center">Loading chart...</div>
+        ) : chartData.length === 0 ? (
+          <div className="h-64 flex items-center justify-center text-gray-500">
+            No sales data available
           </div>
-        </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey="date" 
+                tick={{ fontSize: 12 }}
+                angle={-45}
+                textAnchor="end"
+                height={80}
+              />
+              <YAxis tick={{ fontSize: 12 }} />
+              <Tooltip 
+                formatter={(value: number) => [`৳${value.toFixed(2)}`, 'Sales']}
+                labelStyle={{ color: '#374151' }}
+              />
+              <Legend />
+              <Line 
+                type="monotone" 
+                dataKey="sales" 
+                stroke="#ff6b35" 
+                strokeWidth={2}
+                name="Sales"
+                dot={{ fill: '#ff6b35', r: 4 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       {/* Additional Reports */}

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
-import { FiArrowLeft, FiMail, FiPhone, FiMapPin, FiShoppingCart, FiDollarSign, FiCalendar, FiCheckCircle, FiClock, FiXCircle, FiPackage, FiPauseCircle, FiRefreshCw, FiTruck, FiPrinter } from 'react-icons/fi'
+import { FiArrowLeft, FiUser, FiMail, FiPhone, FiMapPin, FiShoppingCart, FiDollarSign, FiCalendar, FiPackage, FiEye } from 'react-icons/fi'
 import { useAuthStore } from '@/store/authStore'
 import { adminAPI, Order } from '@/lib/api'
 
@@ -16,53 +16,18 @@ interface Customer {
   city?: string
   postal_code?: string
   country?: string
-  role: string
-  created_at?: string
-}
-
-interface Payment {
-  id: number
-  method: string
-  amount: number
-  reference?: string
+  role?: string
   created_at: string
 }
 
-interface OrderItem {
-  id: number
-  product_id: number
-  product: {
-    id: number
-    name: string
-    image?: string
-  }
-  quantity: number
-  price: number
-}
-
-interface CustomerOrder extends Order {
-  payments?: Payment[]
-  total_paid?: number
-  remaining_balance?: number
-  is_fully_paid?: boolean
-  items?: OrderItem[]
-}
-
-export default function CustomerProfilePage() {
+export default function CustomerDetailPage() {
   const router = useRouter()
   const params = useParams()
   const { user, token } = useAuthStore()
   const [customer, setCustomer] = useState<Customer | null>(null)
-  const [orders, setOrders] = useState<CustomerOrder[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
+  const [stats, setStats] = useState({ orders_count: 0, total_spent: 0 })
   const [loading, setLoading] = useState(true)
-  const [loadingOrders, setLoadingOrders] = useState(false)
-  const [statusFilter, setStatusFilter] = useState<string>('')
-  const [dateRange, setDateRange] = useState<string>('all')
-  const [customDateFrom, setCustomDateFrom] = useState<string>('')
-  const [customDateTo, setCustomDateTo] = useState<string>('')
-  const [minAmount, setMinAmount] = useState<string>('')
-  const [maxAmount, setMaxAmount] = useState<string>('')
-  const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>('')
 
   useEffect(() => {
     if (!user || !token) {
@@ -70,364 +35,56 @@ export default function CustomerProfilePage() {
       return
     }
 
-    const userRole = user.role?.toLowerCase()
-    if (!userRole || !['admin', 'staff', 'manager'].includes(userRole)) {
-      router.push('/admin/login')
-      return
+    if (params.id) {
+      fetchCustomer()
     }
-
-    fetchCustomer()
-    fetchCustomerOrders()
   }, [user, token, router, params.id])
-
-  useEffect(() => {
-    if (customer) {
-      fetchCustomerOrders()
-    }
-  }, [statusFilter, dateRange, customDateFrom, customDateTo, minAmount, maxAmount, paymentMethodFilter])
 
   const fetchCustomer = async () => {
     try {
-      setLoading(true)
-      const response = await adminAPI.getUsers()
-      const users = response.data.users || []
-      const foundCustomer = users.find((u: any) => u.id === Number(params.id))
-      
-      if (foundCustomer) {
-        setCustomer({
-          id: foundCustomer.id,
-          name: foundCustomer.name,
-          email: foundCustomer.email,
-          phone: foundCustomer.phone,
-          address: foundCustomer.address,
-          city: foundCustomer.city,
-          postal_code: foundCustomer.postal_code,
-          country: foundCustomer.country,
-          role: foundCustomer.role,
-          created_at: foundCustomer.created_at,
-        })
-      } else {
-        router.push('/admin/customers')
-      }
+      const response = await adminAPI.getCustomer(Number(params.id))
+      setCustomer(response.data.customer)
+      setOrders(response.data.orders || [])
+      setStats(response.data.stats || { orders_count: 0, total_spent: 0 })
     } catch (error) {
       console.error('Failed to fetch customer:', error)
+      alert('Failed to load customer details')
       router.push('/admin/customers')
     } finally {
       setLoading(false)
     }
   }
 
-  const fetchCustomerOrders = async () => {
-    if (!customer) return
-    
-    setLoadingOrders(true)
-    try {
-      const response = await adminAPI.getAdminOrders()
-      const allOrders = response.data.orders || []
-      // Filter orders by customer ID
-      const customerOrders = allOrders.filter((order: Order) => order.user_id === customer.id)
-      setOrders(customerOrders)
-    } catch (error) {
-      console.error('Failed to fetch customer orders:', error)
-      setOrders([])
-    } finally {
-      setLoadingOrders(false)
-    }
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
   }
 
   const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'completed': return 'bg-green-100 text-green-800'
-      case 'pending': return 'bg-yellow-100 text-yellow-800'
-      case 'cancelled': return 'bg-red-100 text-red-800'
-      case 'partial': return 'bg-blue-100 text-blue-800'
-      case 'partial refund': return 'bg-orange-100 text-orange-800'
-      case 'full refund': return 'bg-red-100 text-red-800'
-      case 'hold': return 'bg-purple-100 text-purple-800'
-      case 'delivering': return 'bg-indigo-100 text-indigo-800'
-      default: return 'bg-gray-100 text-gray-800'
+    const colors: Record<string, string> = {
+      pending: 'bg-yellow-100 text-yellow-800',
+      processing: 'bg-blue-100 text-blue-800',
+      completed: 'bg-green-100 text-green-800',
+      cancelled: 'bg-red-100 text-red-800',
+      shipped: 'bg-purple-100 text-purple-800',
     }
-  }
-
-  const formatTableDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const timePart = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
-    const datePart = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    return { timePart, datePart }
-  }
-
-  const getDateRange = () => {
-    const now = new Date()
-    switch (dateRange) {
-      case 'today':
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-        return { from: today, to: now }
-      case 'yesterday':
-        const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
-        const yesterdayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-        return { from: yesterday, to: yesterdayEnd }
-      case 'this_week':
-        const weekStart = new Date(now)
-        weekStart.setDate(now.getDate() - now.getDay())
-        weekStart.setHours(0, 0, 0, 0)
-        return { from: weekStart, to: now }
-      case 'this_month':
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-        return { from: monthStart, to: now }
-      case 'quarterly':
-        const quarterStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)
-        return { from: quarterStart, to: now }
-      case 'custom':
-        if (customDateFrom && customDateTo) {
-          return { from: new Date(customDateFrom), to: new Date(customDateTo) }
-        }
-        return null
-      default:
-        return null
-    }
-  }
-
-  const getPaymentMethods = () => {
-    const methods = new Set<string>()
-    orders.forEach(order => {
-      if (order.payments && Array.isArray(order.payments)) {
-        order.payments.forEach((payment: Payment) => {
-          methods.add(payment.method)
-        })
-      }
-    })
-    return Array.from(methods)
-  }
-
-  const filteredOrders = orders.filter(order => {
-    // Status filter
-    if (statusFilter && order.status.toLowerCase() !== statusFilter.toLowerCase()) {
-      return false
-    }
-
-    // Date range filter
-    const dateRangeFilter = getDateRange()
-    if (dateRangeFilter) {
-      const orderDate = new Date(order.created_at)
-      if (orderDate < dateRangeFilter.from || orderDate > dateRangeFilter.to) {
-        return false
-      }
-    }
-
-    // Amount filters
-    if (minAmount) {
-      const min = parseFloat(minAmount)
-      if (!isNaN(min) && order.total < min) {
-        return false
-      }
-    }
-    if (maxAmount) {
-      const max = parseFloat(maxAmount)
-      if (!isNaN(max) && order.total > max) {
-        return false
-      }
-    }
-
-    // Payment method filter
-    if (paymentMethodFilter) {
-      if (!order.payments || !Array.isArray(order.payments)) {
-        return false
-      }
-      const hasPaymentMethod = order.payments.some((payment: Payment) => 
-        payment.method.toLowerCase() === paymentMethodFilter.toLowerCase()
-      )
-      if (!hasPaymentMethod) {
-        return false
-      }
-    }
-
-    return true
-  })
-
-  const handlePrint = (order: CustomerOrder) => {
-    const customerName = customer?.name || 'Customer'
-    const phone = customer?.phone || ''
-    const dateTime = formatTableDate(order.created_at)
-    const items = order.items || []
-
-    const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-    const discount = subtotal - order.total
-
-    const printWindow = window.open('', '_blank')
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Order #${order.id}</title>
-            <style>
-              body {
-                font-family: 'Courier New', Courier, monospace;
-                margin: 0;
-                padding: 0;
-                width: 80mm;
-                font-size: 12px;
-                color: #000;
-              }
-              .receipt {
-                width: 100%;
-                padding: 5mm;
-                box-sizing: border-box;
-              }
-              .header {
-                text-align: center;
-                margin-bottom: 10px;
-              }
-              .store-name {
-                font-size: 16px;
-                font-weight: bold;
-                margin-bottom: 2px;
-              }
-              .store-address {
-                font-size: 10px;
-              }
-              .divider {
-                border-top: 1px dashed #000;
-                margin: 10px 0;
-              }
-              .order-info, .totals, .payments {
-                margin-bottom: 10px;
-              }
-              .order-info-row, .item-row, .total-row, .payment-row {
-                display: flex;
-                justify-content: space-between;
-                margin-bottom: 2px;
-              }
-              .item-row span:first-child {
-                flex-grow: 1;
-                margin-right: 5px;
-              }
-              .item-row span:nth-child(2) {
-                width: 30px;
-                text-align: right;
-              }
-              .item-row span:nth-child(3) {
-                width: 50px;
-                text-align: right;
-              }
-              .item-row span:last-child {
-                width: 60px;
-                text-align: right;
-                font-weight: bold;
-              }
-              .total-row span:last-child, .payment-row span:last-child {
-                font-weight: bold;
-              }
-              .footer {
-                text-align: center;
-                margin-top: 20px;
-                font-size: 10px;
-              }
-              @page {
-                size: 80mm auto;
-                margin: 0;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="receipt">
-              <div class="header">
-                <div class="store-name">EcomStore</div>
-                <div class="store-address">Order Receipt</div>
-              </div>
-
-              <div class="divider"></div>
-
-              <div class="order-info">
-                <div class="order-info-row">
-                  <span>Order #:</span>
-                  <span>${order.id}</span>
-                </div>
-                <div class="order-info-row">
-                  <span>Date:</span>
-                  <span>${dateTime.datePart}</span>
-                </div>
-                <div class="order-info-row">
-                  <span>Time:</span>
-                  <span>${dateTime.timePart}</span>
-                </div>
-                <div class="order-info-row">
-                  <span>Customer:</span>
-                  <span>${customerName}</span>
-                </div>
-                ${phone ? `<div class="order-info-row"><span>Phone:</span><span>${phone}</span></div>` : ''}
-              </div>
-
-              <div class="divider"></div>
-
-              <div class="items">
-                ${items.map(item => `
-                  <div class="item-row">
-                    <span>${item.product?.name || 'Product'}</span>
-                    <span>${item.quantity}</span>
-                    <span>@${item.price.toFixed(2)}</span>
-                    <span>${(item.price * item.quantity).toFixed(2)}</span>
-                  </div>
-                `).join('')}
-              </div>
-
-              <div class="divider"></div>
-
-              <div class="totals">
-                <div class="total-row">
-                  <span>Subtotal:</span>
-                  <span>${subtotal.toFixed(2)}</span>
-                </div>
-                ${discount > 0 ? `
-                  <div class="total-row">
-                    <span>Discount:</span>
-                    <span>-${discount.toFixed(2)}</span>
-                  </div>
-                ` : ''}
-                <div class="total-row">
-                  <span>Grand Total:</span>
-                  <span>${order.total.toFixed(2)}</span>
-                </div>
-              </div>
-
-              ${order.payments && order.payments.length > 0 ? `
-                <div class="divider"></div>
-                <div class="payments">
-                  ${order.payments.map((payment: Payment) => `
-                    <div class="payment-row">
-                      <span>${payment.method.charAt(0).toUpperCase() + payment.method.slice(1)}:</span>
-                      <span>${payment.amount.toFixed(2)}</span>
-                    </div>
-                  `).join('')}
-                </div>
-              ` : ''}
-
-              <div class="divider"></div>
-
-              <div class="footer">
-                Thank you for your purchase!
-              </div>
-            </div>
-          </body>
-        </html>
-      `)
-      printWindow.document.close()
-      printWindow.print()
-    }
+    return colors[status.toLowerCase()] || 'bg-gray-100 text-gray-800'
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#ff6b35]"></div>
-      </div>
-    )
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>
   }
 
   if (!customer) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <p className="text-xl text-gray-500 mb-4">Customer not found</p>
+          <p className="text-gray-500 mb-4">Customer not found</p>
           <Link href="/admin/customers" className="text-[#ff6b35] hover:underline">
             Back to Customers
           </Link>
@@ -435,9 +92,6 @@ export default function CustomerProfilePage() {
       </div>
     )
   }
-
-  const totalSpent = orders.reduce((sum, order) => sum + order.total, 0)
-  const ordersCount = orders.length
 
   return (
     <div className="space-y-6">
@@ -451,66 +105,58 @@ export default function CustomerProfilePage() {
             <FiArrowLeft className="w-5 h-5 text-gray-600" />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Customer Profile</h1>
-            <p className="text-gray-600 mt-1">View customer details and order history</p>
+            <h1 className="text-2xl font-bold text-gray-900">Customer Details</h1>
+            <p className="text-gray-600 mt-1">View customer information and order history</p>
           </div>
         </div>
       </div>
 
-      {/* Customer Info */}
+      {/* Customer Info Card */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex items-start space-x-6">
-          {/* Profile Picture */}
-          <div className="w-24 h-24 bg-[#ff6b35] rounded-full flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-3xl font-bold">
+          <div className="w-20 h-20 bg-[#ff6b35] rounded-full flex items-center justify-center">
+            <span className="text-white text-2xl font-semibold">
               {customer.name.charAt(0).toUpperCase()}
             </span>
           </div>
-
-          {/* Customer Details */}
           <div className="flex-1">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">{customer.name}</h3>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">{customer.name}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
-                  <FiMail className="w-4 h-4" />
-                  <span>{customer.email}</span>
+              <div className="flex items-center space-x-3">
+                <FiMail className="w-5 h-5 text-gray-400" />
+                <div>
+                  <p className="text-sm text-gray-500">Email</p>
+                  <p className="text-gray-900">{customer.email}</p>
                 </div>
-                {customer.phone && (
-                  <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <FiPhone className="w-4 h-4" />
-                    <span>{customer.phone}</span>
-                  </div>
-                )}
-                {(customer.address || customer.city) && (
-                  <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <FiMapPin className="w-4 h-4" />
-                    <span>
-                      {customer.address || ''}
-                      {customer.address && customer.city ? ', ' : ''}
-                      {customer.city || ''}
-                      {customer.postal_code ? ` ${customer.postal_code}` : ''}
-                      {customer.country ? `, ${customer.country}` : ''}
-                    </span>
-                  </div>
-                )}
-                {customer.created_at && (
-                  <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <FiCalendar className="w-4 h-4" />
-                    <span>Member since {new Date(customer.created_at).toLocaleDateString()}</span>
-                  </div>
-                )}
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2 text-sm">
-                  <FiShoppingCart className="w-4 h-4 text-gray-500" />
-                  <span className="text-gray-600">Total Orders:</span>
-                  <span className="font-semibold text-gray-900">{ordersCount}</span>
+              {customer.phone && (
+                <div className="flex items-center space-x-3">
+                  <FiPhone className="w-5 h-5 text-gray-400" />
+                  <div>
+                    <p className="text-sm text-gray-500">Phone</p>
+                    <p className="text-gray-900">{customer.phone}</p>
+                  </div>
                 </div>
-                <div className="flex items-center space-x-2 text-sm">
-                  <FiDollarSign className="w-4 h-4 text-gray-500" />
-                  <span className="text-gray-600">Total Spent:</span>
-                  <span className="font-semibold text-[#ff6b35]">৳{totalSpent.toFixed(2)}</span>
+              )}
+              {(customer.address || customer.city) && (
+                <div className="flex items-start space-x-3">
+                  <FiMapPin className="w-5 h-5 text-gray-400 mt-1" />
+                  <div>
+                    <p className="text-sm text-gray-500">Address</p>
+                    <p className="text-gray-900">
+                      {customer.address && `${customer.address}, `}
+                      {customer.city && `${customer.city}, `}
+                      {customer.postal_code && `${customer.postal_code}, `}
+                      {customer.country}
+                    </p>
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center space-x-3">
+                <FiCalendar className="w-5 h-5 text-gray-400" />
+                <div>
+                  <p className="text-sm text-gray-500">Member Since</p>
+                  <p className="text-gray-900">{formatDate(customer.created_at)}</p>
                 </div>
               </div>
             </div>
@@ -518,186 +164,97 @@ export default function CustomerProfilePage() {
         </div>
       </div>
 
-      {/* Orders Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Order History</h2>
-          
-          {/* Filters */}
-          <div className="flex items-center flex-wrap gap-3 lg:flex-nowrap">
-            {/* Search - First */}
-            <div className="flex-1 min-w-[200px]">
-              <div className="relative">
-                <FiCalendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <select
-                  value={dateRange}
-                  onChange={(e) => setDateRange(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ff6b35] text-gray-900 bg-white"
-                >
-                  <option value="all">All Orders</option>
-                  <option value="today">Today</option>
-                  <option value="yesterday">Yesterday</option>
-                  <option value="this_week">This Week</option>
-                  <option value="this_month">This Month</option>
-                  <option value="quarterly">Quarterly</option>
-                  <option value="custom">Custom</option>
-                </select>
-              </div>
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Total Orders</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.orders_count}</p>
             </div>
-
-            {/* Custom Date Range */}
-            {dateRange === 'custom' && (
-              <>
-                <input
-                  type="date"
-                  value={customDateFrom}
-                  onChange={(e) => setCustomDateFrom(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ff6b35] text-gray-900 bg-white"
-                />
-                <input
-                  type="date"
-                  value={customDateTo}
-                  onChange={(e) => setCustomDateTo(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ff6b35] text-gray-900 bg-white"
-                />
-              </>
-            )}
-
-            {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ff6b35] text-gray-900 bg-white"
-            >
-              <option value="">All Status</option>
-              <option value="completed">Completed</option>
-              <option value="pending">Pending</option>
-              <option value="partial">Partial Payment</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="partial refund">Partial Refund</option>
-              <option value="full refund">Full Refund</option>
-              <option value="hold">Hold</option>
-              <option value="delivering">Delivering</option>
-            </select>
-
-            {/* Min Amount */}
-            <div className="flex items-center space-x-2">
-              <label className="text-sm text-gray-600 whitespace-nowrap">Min:</label>
-              <input
-                type="number"
-                placeholder="0.00"
-                value={minAmount}
-                onChange={(e) => setMinAmount(e.target.value)}
-                className="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ff6b35] text-gray-900 bg-white"
-                min="0"
-                step="0.01"
-              />
+            <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center">
+              <FiShoppingCart className="w-6 h-6 text-blue-600" />
             </div>
-
-            {/* Max Amount */}
-            <div className="flex items-center space-x-2">
-              <label className="text-sm text-gray-600 whitespace-nowrap">Max:</label>
-              <input
-                type="number"
-                placeholder="0.00"
-                value={maxAmount}
-                onChange={(e) => setMaxAmount(e.target.value)}
-                className="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ff6b35] text-gray-900 bg-white"
-                min="0"
-                step="0.01"
-              />
-            </div>
-
-            {/* Payment Method Filter */}
-            <select
-              value={paymentMethodFilter}
-              onChange={(e) => setPaymentMethodFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ff6b35] text-gray-900 bg-white"
-            >
-              <option value="">All Methods</option>
-              {getPaymentMethods().map(method => (
-                <option key={method} value={method}>{method.charAt(0).toUpperCase() + method.slice(1)}</option>
-              ))}
-            </select>
           </div>
         </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Total Spent</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                ৳{stats.total_spent.toFixed(2)}
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center">
+              <FiDollarSign className="w-6 h-6 text-green-600" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Average Order</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                ৳{stats.orders_count > 0 ? (stats.total_spent / stats.orders_count).toFixed(2) : '0.00'}
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-orange-50 rounded-lg flex items-center justify-center">
+              <FiPackage className="w-6 h-6 text-orange-600" />
+            </div>
+          </div>
+        </div>
+      </div>
 
-        {/* Orders Table */}
-        <div className="overflow-x-auto">
-          {loadingOrders ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#ff6b35]"></div>
-            </div>
-          ) : filteredOrders.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <FiShoppingCart className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-              <p>No orders found</p>
-            </div>
-          ) : (
+      {/* Order History */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Order History</h2>
+        </div>
+        {orders.length > 0 ? (
+          <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Order #</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Total</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Payment</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Action</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Items</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredOrders.map((order) => {
-                  const { datePart, timePart } = formatTableDate(order.created_at)
-                  return (
-                    <tr key={order.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        <span className="text-sm font-medium text-gray-900">#{order.id}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col">
-                          <span className="text-sm font-semibold text-gray-900">{timePart}</span>
-                          <span className="text-xs text-gray-600">{datePart}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-1 rounded text-xs font-semibold ${getStatusColor(order.status)}`}>
-                          {order.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-sm font-semibold text-[#ff6b35]">৳{order.total.toFixed(2)}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {order.payments && Array.isArray(order.payments) && order.payments.length > 0 ? (
-                          <div className="flex flex-col gap-0.5">
-                            {order.payments.map((payment: Payment, index: number) => (
-                              <div key={payment.id || index} className="text-xs text-gray-700">
-                                <span className="capitalize">{payment.method}</span> <span className="font-semibold text-gray-900">৳{payment.amount.toFixed(2)}</span>
-                              </div>
-                            ))}
-                            <div className="text-xs font-bold text-gray-900 pt-0.5 border-t border-gray-200 mt-0.5">
-                              Total = ৳{order.total.toFixed(2)}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-400">No payments</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => handlePrint(order)}
-                          className="p-1.5 text-gray-600 hover:text-[#ff6b35] transition"
-                        >
-                          <FiPrinter className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
+                {orders.map((order) => (
+                  <tr key={order.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">#{order.id}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{formatDate(order.created_at)}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{order.items?.length || 0} items</td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">৳{order.total.toFixed(2)}</td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(order.status)}`}>
+                        {order.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <Link
+                        href={`/admin/orders/${order.id}`}
+                        className="inline-flex items-center space-x-1 text-[#ff6b35] hover:text-[#ff8c5a] transition"
+                      >
+                        <FiEye className="w-4 h-4" />
+                        <span className="text-sm">View</span>
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="p-12 text-center">
+            <FiShoppingCart className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-500">No orders found</p>
+          </div>
+        )}
       </div>
     </div>
   )

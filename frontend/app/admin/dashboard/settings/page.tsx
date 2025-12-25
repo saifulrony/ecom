@@ -73,9 +73,11 @@ export default function DashboardSettingsPage() {
   const handleSave = async () => {
     setSaving(true)
     try {
-      // TODO: Save dashboard settings to backend API
-      // await adminAPI.updateDashboardSettings({ ... })
-      
+      const { adminAPI } = await import('@/lib/api')
+      await adminAPI.updateDashboardSettings({
+        layout: 'default',
+        widgets: [],
+      })
       alert('Settings saved successfully!')
     } catch (error: any) {
       alert(error.response?.data?.error || 'Failed to save settings')

@@ -36,8 +36,20 @@ func RateLimitMiddleware(requestsPerMinute int) gin.HandlerFunc {
 
 		// Check if limit exceeded
 		if count > int64(requestsPerMinute) {
+			// Calculate retry-after header (seconds until next window)
+			ttl, err := cache.GetTTL(key)
+			retryAfter := 60 // Default to 60 seconds
+			if err == nil && ttl > 0 {
+				retryAfter = int(ttl.Seconds())
+				if retryAfter < 1 {
+					retryAfter = 1
+				}
+			}
+			c.Header("Retry-After", strconv.Itoa(retryAfter))
+			
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"error": "Rate limit exceeded. Please try again later.",
+				"retry_after": retryAfter,
 			})
 			c.Abort()
 			return

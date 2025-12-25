@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"ecom-backend/database"
@@ -23,6 +24,7 @@ type POSOrderRequest struct {
 	CouponCode  string                 `json:"coupon_code"`
 	Payments    []POSPayment           `json:"payments" binding:"required"` // Multiple payments
 	Notes       string                 `json:"notes"`
+	StockType   string                 `json:"stock_type"` // "website" or "showroom", defaults to "website"
 }
 
 type POSPayment struct {
@@ -85,6 +87,15 @@ func CreatePOSOrder(c *gin.Context) {
 		userID = walkInUser.ID
 	}
 
+	// Determine stock type (default to website)
+	stockType := req.StockType
+	if stockType == "" {
+		stockType = "website"
+	}
+	if stockType != "website" && stockType != "showroom" {
+		stockType = "website"
+	}
+
 	// Calculate total and check stock
 	var total float64
 	for _, item := range req.Items {
@@ -94,9 +105,16 @@ func CreatePOSOrder(c *gin.Context) {
 			return
 		}
 
-		if product.Stock < item.Quantity {
+		// Check appropriate stock field
+		availableStock := product.Stock
+		if stockType == "showroom" {
+			availableStock = product.PosStock
+		}
+
+		if availableStock < item.Quantity {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Insufficient stock for product: " + product.Name,
+				"error": "Insufficient " + stockType + " stock for product: " + product.Name + 
+					" (Available: " + strconv.Itoa(availableStock) + ", Requested: " + strconv.Itoa(item.Quantity) + ")",
 			})
 			return
 		}
@@ -226,8 +244,12 @@ func CreatePOSOrder(c *gin.Context) {
 		}
 		database.DB.Create(&orderItem)
 
-		// Update product stock
-		product.Stock -= item.Quantity
+		// Update appropriate stock field
+		if stockType == "showroom" {
+			product.PosStock -= item.Quantity
+		} else {
+			product.Stock -= item.Quantity
+		}
 		database.DB.Save(&product)
 	}
 

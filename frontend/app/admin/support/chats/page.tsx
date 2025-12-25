@@ -17,6 +17,8 @@ interface Chat {
   user_id: number | null
   user_name: string
   user_email: string
+  guest_name?: string
+  guest_email?: string
   status: 'active' | 'resolved' | 'pending'
   last_message: string
   last_message_time: string
@@ -79,6 +81,8 @@ export default function SupportChatsPage() {
         user_id: chat.user_id || null,
         user_name: chat.user_name || 'Anonymous',
         user_email: chat.user_email || 'N/A',
+        guest_name: chat.guest_name || undefined,
+        guest_email: chat.guest_email || undefined,
         status: chat.status || 'active',
         last_message: chat.last_message || '',
         last_message_time: chat.last_message_time || chat.created_at,
@@ -138,7 +142,7 @@ export default function SupportChatsPage() {
       
       const transformedMessages: ChatMessage[] = messagesData.map((msg: any) => ({
         id: msg.id,
-        sender: msg.sender as 'user' | 'ai',
+        sender: msg.sender as 'user' | 'ai' | 'admin',
         message: msg.message,
         created_at: msg.created_at,
       }))
@@ -183,10 +187,10 @@ export default function SupportChatsPage() {
   }
 
   const filteredChats = chats.filter(chat =>
-    chat.user_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    chat.user_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    chat.last_message.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+        chat.user_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        chat.user_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        chat.last_message.toLowerCase().includes(searchQuery.toLowerCase())
+      )
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString)
@@ -334,6 +338,9 @@ export default function SupportChatsPage() {
                         </div>
                         <p className="text-xs text-gray-600 truncate mb-1">
                           {chat.user_email}
+                          {chat.guest_email && chat.user_id === null && (
+                            <span className="text-blue-600 ml-1">(Guest)</span>
+                          )}
                         </p>
                         <p className="text-sm text-gray-700 truncate">
                           {chat.last_message || 'No messages yet'}
@@ -387,18 +394,18 @@ export default function SupportChatsPage() {
                   </div>
                   <div className="flex items-center space-x-2">
                     {/* Status Dropdown */}
-                    <select
+          <select
                       value={selectedChat.status}
                       onChange={(e) => handleStatusChange(selectedChat.id, e.target.value as 'active' | 'resolved' | 'pending')}
                       className="px-3 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ff6b35] text-gray-900 bg-white"
-                    >
-                      <option value="active">Active</option>
-                      <option value="pending">Pending</option>
-                      <option value="resolved">Resolved</option>
-                    </select>
+          >
+            <option value="active">Active</option>
+            <option value="pending">Pending</option>
+            <option value="resolved">Resolved</option>
+          </select>
                   </div>
-                </div>
-              </div>
+        </div>
+      </div>
 
               {/* Messages */}
               <div
@@ -408,7 +415,7 @@ export default function SupportChatsPage() {
                 {messagesLoading ? (
                   <div className="flex items-center justify-center h-full">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#ff6b35]"></div>
-                  </div>
+        </div>
                 ) : messages.length > 0 ? (
                   <div className="space-y-4">
                     {messages.map((message) => (
@@ -420,29 +427,33 @@ export default function SupportChatsPage() {
                           className={`max-w-[70%] rounded-lg px-4 py-2 ${
                             message.sender === 'user'
                               ? 'bg-[#ff6b35] text-white'
+                              : message.sender === 'admin'
+                              ? 'bg-blue-600 text-white'
                               : 'bg-white text-gray-900 border border-gray-200'
                           }`}
                         >
                           <p className="text-sm whitespace-pre-wrap">{message.message}</p>
                           <p
                             className={`text-xs mt-1 ${
-                              message.sender === 'user' ? 'text-white/70' : 'text-gray-500'
+                              message.sender === 'user' || message.sender === 'admin'
+                                ? 'text-white/70'
+                                : 'text-gray-500'
                             }`}
                           >
                             {formatMessageTime(message.created_at)}
                           </p>
-                        </div>
+                          </div>
                       </div>
                     ))}
                     <div ref={messagesEndRef} />
-                  </div>
+                          </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full text-gray-500">
                     <FiMessageCircle className="w-16 h-16 mb-4 text-gray-300" />
                     <p className="text-sm">No messages yet</p>
-                  </div>
+                            </div>
                 )}
-              </div>
+                            </div>
 
               {/* Message Input */}
               <div className="p-4 border-t border-gray-200 bg-white">
@@ -473,7 +484,7 @@ export default function SupportChatsPage() {
                     )}
                   </button>
                 </div>
-              </div>
+                            </div>
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center bg-gray-50">
@@ -481,9 +492,9 @@ export default function SupportChatsPage() {
                 <FiMessageCircle className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                 <p className="text-lg font-medium">Select a chat to view messages</p>
                 <p className="text-sm mt-2">Choose a conversation from the left sidebar</p>
-              </div>
-            </div>
-          )}
+                            </div>
+                          </div>
+                        )}
         </div>
       </div>
     </div>

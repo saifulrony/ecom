@@ -101,3 +101,29 @@ func GetSetting(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"setting": setting})
 }
 
+// GetPublicSetting returns a specific setting (public, for checkout)
+func GetPublicSetting(c *gin.Context) {
+	key := c.Param("key")
+	// Only allow certain public settings
+	allowedKeys := []string{"tax_rate", "shipping_cost"}
+	isAllowed := false
+	for _, allowedKey := range allowedKeys {
+		if key == allowedKey {
+			isAllowed = true
+			break
+		}
+	}
+	if !isAllowed {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Setting not accessible"})
+		return
+	}
+
+	var setting models.Setting
+	if err := database.DB.Where("key = ?", key).First(&setting).Error; err != nil {
+		c.JSON(http.StatusOK, gin.H{"setting": models.Setting{Key: key, Value: "0", Type: "number"}})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"setting": setting})
+}
+

@@ -27,7 +27,7 @@ func GetProducts(c *gin.Context) {
 
 	// Not in cache or cache key indicates no cache, fetch from database
 	var products []models.Product
-	query := database.DB.Preload("Category")
+	query := database.DB.Preload("Category").Preload("Variations.Options")
 
 	// Filter by category
 	if categoryID := c.Query("category_id"); categoryID != "" {

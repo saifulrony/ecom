@@ -10,6 +10,7 @@ import (
 	"ecom-backend/models"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // GetChatMessages retrieves all messages for a specific chat
@@ -22,7 +23,9 @@ func GetChatMessages(c *gin.Context) {
 	}
 	
 	var chat models.Chat
-	if err := database.DB.Preload("Messages").Where("id = ?", chatID).First(&chat).Error; err != nil {
+	if err := database.DB.Preload("Messages.AdminUser").Preload("Messages", func(db *gorm.DB) *gorm.DB {
+		return db.Order("created_at ASC")
+	}).Where("id = ?", chatID).First(&chat).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Chat not found"})
 		return
 	}
@@ -78,7 +81,9 @@ func GetChatMessagesAdmin(c *gin.Context) {
 	}
 	
 	var chat models.Chat
-	if err := database.DB.Preload("Messages").Where("id = ?", chatID).First(&chat).Error; err != nil {
+	if err := database.DB.Preload("Messages.AdminUser").Preload("Messages", func(db *gorm.DB) *gorm.DB {
+		return db.Order("created_at ASC")
+	}).Where("id = ?", chatID).First(&chat).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Chat not found"})
 		return
 	}
@@ -170,9 +175,10 @@ func SendAdminMessage(c *gin.Context) {
 
 	// Create message
 	message := models.ChatMessage{
-		ChatID:  uint(chatID),
-		Sender:  "ai", // Using "ai" to distinguish from customer messages (can change to "admin" if needed)
-		Message: req.Message,
+		ChatID:     uint(chatID),
+		Sender:     "admin", // Admin/support staff messages use "admin" to distinguish from AI and user messages
+		AdminUserID: &adminID, // Store which admin sent this message
+		Message:    req.Message,
 	}
 
 	if err := database.DB.Create(&message).Error; err != nil {
@@ -222,6 +228,163 @@ func UpdateChatStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Chat status updated successfully",
 		"chat": chat,
+	})
+}
+
+// EndChat allows customers (authenticated or anonymous) to end their own chat
+func EndChat(c *gin.Context) {
+	chatIDStr := c.Param("id")
+	chatID, err := strconv.ParseUint(chatIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid chat ID"})
+		return
+	}
+
+	var chat models.Chat
+	if err := database.DB.First(&chat, chatID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Chat not found"})
+		return
+	}
+
+	// Get user ID if authenticated (optional)
+	var userID *uint
+	if userIDVal, exists := c.Get("userID"); exists {
+		id := userIDVal.(uint)
+		userID = &id
+	}
+
+	// Get client IP for anonymous users
+	clientIP := c.ClientIP()
+
+	// Verify ownership (same logic as GetChatMessages):
+	// 1. For authenticated users: chat must belong to the user
+	// 2. For anonymous users: chat must match IP (or be legacy with empty IP) and be recent (within 7 days)
+	isOwner := false
+	if userID != nil && chat.UserID != nil && *chat.UserID == *userID {
+		isOwner = true
+		log.Printf("EndChat: Verified ownership for authenticated user_id=%d, chat_id=%d", *userID, chat.ID)
+	} else if userID == nil && chat.UserID == nil {
+		// For anonymous users, check if IP matches (for recent chats within 7 days)
+		sevenDaysAgo := time.Now().AddDate(0, 0, -7)
+		if chat.IPAddress == clientIP && chat.CreatedAt.After(sevenDaysAgo) {
+			isOwner = true
+			log.Printf("EndChat: Verified ownership by IP=%s for chat_id=%d", clientIP, chat.ID)
+		} else if chat.IPAddress == "" && chat.CreatedAt.After(sevenDaysAgo) {
+			// Legacy chat without IP (created before IP tracking was added)
+			// Allow ending if recent (within 7 days) for backward compatibility
+			isOwner = true
+			log.Printf("EndChat: Verified ownership for legacy chat (empty IP) chat_id=%d", chat.ID)
+		} else {
+			log.Printf("EndChat: Ownership check failed - chat_id=%d, user_id=%v, chat_ip=%s, client_ip=%s, created_at=%v", 
+				chat.ID, userID, chat.IPAddress, clientIP, chat.CreatedAt)
+		}
+	} else {
+		log.Printf("EndChat: Ownership check failed - user_id mismatch: chat_id=%d, user_id=%v, chat.user_id=%v", 
+			chat.ID, userID, chat.UserID)
+	}
+
+	if !isOwner {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to end this chat"})
+		return
+	}
+
+	// Only allow ending active chats
+	if chat.Status != "active" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Chat is already ended or resolved"})
+		return
+	}
+
+	// Update chat status to resolved
+	chat.Status = "resolved"
+	if err := database.DB.Save(&chat).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to end chat"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Chat ended successfully",
+		"chat_id": chat.ID,
+	})
+}
+
+// EscalateChat allows customers to escalate their chat to human support
+// This changes the chat status to "pending" to signal that it needs human attention
+func EscalateChat(c *gin.Context) {
+	chatIDStr := c.Param("id")
+	chatID, err := strconv.ParseUint(chatIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid chat ID"})
+		return
+	}
+
+	var chat models.Chat
+	if err := database.DB.First(&chat, chatID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Chat not found"})
+		return
+	}
+
+	// Get user ID if authenticated (optional)
+	var userID *uint
+	if userIDVal, exists := c.Get("userID"); exists {
+		id := userIDVal.(uint)
+		userID = &id
+	}
+
+	// Get client IP for anonymous users
+	clientIP := c.ClientIP()
+
+	// Verify ownership (same logic as GetChatMessages and EndChat)
+	isOwner := false
+	if userID != nil && chat.UserID != nil && *chat.UserID == *userID {
+		isOwner = true
+		log.Printf("EscalateChat: Verified ownership for authenticated user_id=%d, chat_id=%d", *userID, chat.ID)
+	} else if userID == nil && chat.UserID == nil {
+		// For anonymous users, check if IP matches (for recent chats within 7 days)
+		sevenDaysAgo := time.Now().AddDate(0, 0, -7)
+		if chat.IPAddress == clientIP && chat.CreatedAt.After(sevenDaysAgo) {
+			isOwner = true
+			log.Printf("EscalateChat: Verified ownership by IP=%s for chat_id=%d", clientIP, chat.ID)
+		} else if chat.IPAddress == "" && chat.CreatedAt.After(sevenDaysAgo) {
+			// Legacy chat without IP
+			isOwner = true
+			log.Printf("EscalateChat: Verified ownership for legacy chat (empty IP) chat_id=%d", chat.ID)
+		} else {
+			log.Printf("EscalateChat: Ownership check failed - chat_id=%d, user_id=%v, chat_ip=%s, client_ip=%s", 
+				chat.ID, userID, chat.IPAddress, clientIP)
+		}
+	}
+
+	if !isOwner {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to escalate this chat"})
+		return
+	}
+
+	// Only allow escalating active chats
+	if chat.Status != "active" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Only active chats can be escalated to support"})
+		return
+	}
+
+	// Update chat status to pending (signals that human support is needed)
+	chat.Status = "pending"
+	chat.UpdatedAt = time.Now()
+	if err := database.DB.Save(&chat).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to escalate chat"})
+		return
+	}
+
+	// Optionally add a system message to the chat indicating escalation
+	escalationMessage := models.ChatMessage{
+		ChatID:  uint(chatID),
+		Sender:  "ai", // System message
+		Message: "Your chat has been escalated to our support team. A support agent will respond shortly.",
+	}
+	database.DB.Create(&escalationMessage)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Chat escalated to support successfully",
+		"chat_id": chat.ID,
+		"status":  "pending",
 	})
 }
 

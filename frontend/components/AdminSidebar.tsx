@@ -2,18 +2,32 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { 
   FiLayout, FiPackage, FiShoppingCart, FiUsers, FiBarChart2, 
   FiSettings, FiHome, FiTrendingUp, FiFileText, FiTag, FiLogOut, FiBell, FiCreditCard,
-  FiChevronDown, FiChevronRight, FiEye, FiMessageCircle, FiHeadphones, FiTarget
+  FiChevronDown, FiChevronRight, FiEye, FiMessageCircle, FiHeadphones, FiTarget, FiSliders, FiEdit
 } from 'react-icons/fi'
 
 export default function AdminSidebar() {
   const pathname = usePathname()
-  const [showPOSSubmenu, setShowPOSSubmenu] = useState(true)
-  const [showReportsSubmenu, setShowReportsSubmenu] = useState(true)
-  const [showSupportSubmenu, setShowSupportSubmenu] = useState(true)
+  // Only open submenus if current path matches submenu items
+  const [showPOSSubmenu, setShowPOSSubmenu] = useState(
+    pathname === '/admin/pos' || pathname === '/admin/pos/settings' || pathname?.startsWith('/admin/pos/')
+  )
+  const [showReportsSubmenu, setShowReportsSubmenu] = useState(
+    pathname?.startsWith('/admin/reports')
+  )
+  const [showSupportSubmenu, setShowSupportSubmenu] = useState(
+    pathname?.startsWith('/admin/support')
+  )
+
+  // Update submenu states when pathname changes
+  useEffect(() => {
+    setShowPOSSubmenu(pathname === '/admin/pos' || pathname === '/admin/pos/settings' || pathname?.startsWith('/admin/pos/'))
+    setShowReportsSubmenu(pathname?.startsWith('/admin/reports'))
+    setShowSupportSubmenu(pathname?.startsWith('/admin/support'))
+  }, [pathname])
 
   const handleOpenPOSInNewTab = () => {
     window.open('/admin/pos', '_blank')
@@ -29,6 +43,9 @@ export default function AdminSidebar() {
     { name: 'Sales', href: '/admin/sales', icon: FiTrendingUp },
     { name: 'Users', href: '/admin/users', icon: FiUsers },
     { name: 'Campaigns', href: '/admin/campaigns', icon: FiTarget },
+    { name: 'Page Builder', href: '/admin/page-builder', icon: FiEdit },
+    { name: 'Customization', href: '/admin/customization', icon: FiSliders },
+    { name: 'Payment Gateways', href: '/admin/payment-gateways', icon: FiCreditCard },
     { name: 'Settings', href: '/admin/settings', icon: FiSettings },
   ]
 

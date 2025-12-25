@@ -25,8 +25,9 @@ func SetupRoutes() *gin.Engine {
 	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
 	r.Use(cors.New(config))
 
-	// Rate limiting middleware (100 requests per minute per IP)
-	r.Use(middleware.RateLimitMiddleware(100))
+	// Rate limiting middleware (500 requests per minute per IP - increased for SPA)
+	// Note: SPAs make multiple API calls on page load (products, categories, cart, wishlist, etc.)
+	r.Use(middleware.RateLimitMiddleware(500))
 
 	// Root route
 	r.GET("/", func(c *gin.Context) {
@@ -66,14 +67,26 @@ func SetupRoutes() *gin.Engine {
 			products.GET("", controllers.GetProducts)
 			products.GET("/:id", controllers.GetProduct)
 			products.GET("/:id/variations", controllers.GetProductVariations)
+			products.GET("/:id/reviews", controllers.GetProductReviews) // Public route for getting product reviews
 		}
 
 		// Category routes
 		api.GET("/categories", controllers.GetCategories)
 
+		// Public payment gateways (for checkout)
+		api.GET("/payment-gateways", controllers.GetActivePaymentGateways)
+
+		// Public settings (for checkout calculations)
+		api.GET("/settings/:key", controllers.GetPublicSetting)
+
+		// Public tax rate lookup
+		api.GET("/tax-rate", controllers.GetTaxRateForLocation)
+
 		// Chat routes (public)
 		api.POST("/chat", controllers.HandleChat)
 		api.GET("/chat/active", controllers.GetActiveChat) // Find active chat by user/IP (useful when localStorage is cleared)
+		api.POST("/chat/:id/end", controllers.EndChat) // Allow customers to end their own chat (more specific, must come before /chat/:id)
+		api.POST("/chat/:id/escalate", controllers.EscalateChat) // Allow customers to escalate chat to human support
 		api.GET("/chat/:id", controllers.GetChatMessages)
 	}
 
@@ -137,6 +150,7 @@ func SetupRoutes() *gin.Engine {
 		// Users management
 		admin.GET("/users", controllers.GetUsers)
 		admin.GET("/customers", controllers.GetCustomers)
+		admin.GET("/customers/:id", controllers.GetCustomer)
 
 		// Support/Chat management
 		// More specific routes must come before less specific ones
@@ -196,6 +210,19 @@ func SetupRoutes() *gin.Engine {
 		admin.GET("/settings/:key", controllers.GetSetting)
 		admin.PUT("/settings", controllers.UpdateSettings)
 
+		// Dashboard settings
+		admin.GET("/dashboard/settings", controllers.GetDashboardSettings)
+		admin.PUT("/dashboard/settings", controllers.UpdateDashboardSettings)
+
+		// POS settings
+		admin.GET("/pos/settings", controllers.GetPOSSettings)
+		admin.PUT("/pos/settings", controllers.UpdatePOSSettings)
+
+		// Payment Gateway management
+		admin.GET("/payment-gateways", controllers.GetPaymentGateways)
+		admin.PUT("/payment-gateways", controllers.UpdatePaymentGateway)
+		admin.PUT("/payment-gateways/default", controllers.SetDefaultPaymentGateway)
+
 		// Notifications management
 		admin.GET("/notifications", controllers.GetNotifications)
 		admin.POST("/notifications", controllers.CreateNotification)
@@ -207,6 +234,17 @@ func SetupRoutes() *gin.Engine {
 		admin.GET("/orders/export/csv", controllers.ExportOrdersCSV)
 		admin.GET("/orders/export/pdf", controllers.ExportOrdersPDF)
 		admin.GET("/orders/:id/invoice", controllers.GenerateInvoice)
+		admin.POST("/orders/:id/invoice/email", controllers.SendInvoiceEmail)
+
+		// Tax rates management
+		admin.GET("/tax-rates", controllers.GetTaxRates)
+		admin.GET("/tax-rates/:id", controllers.GetTaxRate)
+		admin.POST("/tax-rates", controllers.CreateTaxRate)
+		admin.PUT("/tax-rates/:id", controllers.UpdateTaxRate)
+		admin.DELETE("/tax-rates/:id", controllers.DeleteTaxRate)
+
+		// Tax reports
+		admin.GET("/tax-reports", controllers.GetTaxReports)
 
 		// Bulk operations
 		admin.POST("/products/bulk-delete", controllers.BulkDeleteProducts)
@@ -238,7 +276,23 @@ func SetupRoutes() *gin.Engine {
 		// File upload
 		admin.POST("/upload/image", controllers.UploadImage)
 		admin.POST("/upload/file", controllers.UploadFile)
+
+		// Theme Customization
+		admin.GET("/customization", controllers.GetAllCustomizations)
+		admin.GET("/customization/:key", controllers.GetCustomization)
+		admin.PUT("/customization/:key", controllers.UpdateCustomization)
+		admin.DELETE("/customization/:key", controllers.ResetCustomization)
+
+		// Page Builder
+		admin.GET("/pages", controllers.GetPages)
+		admin.GET("/pages/:id", controllers.GetPage)
+		admin.POST("/pages", controllers.CreatePage)
+		admin.PUT("/pages/:id", controllers.UpdatePage)
+		admin.DELETE("/pages/:id", controllers.DeletePage)
 	}
+
+	// Public route for viewing pages
+	api.GET("/pages/:id", controllers.GetPage)
 
 	return r
 }

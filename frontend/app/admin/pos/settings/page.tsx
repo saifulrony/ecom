@@ -73,8 +73,27 @@ export default function POSSettingsPage() {
     checkAuth()
   }, [user, token, router])
 
-  const loadSettings = () => {
-    // Load stock type preference from localStorage
+  const loadSettings = async () => {
+    try {
+      // Try to load from backend first
+      const { adminAPI } = await import('@/lib/api')
+      const response = await adminAPI.getPOSSettings()
+      if (response.data.settings && response.data.settings.stock_type) {
+        const backendStockType = response.data.settings.stock_type as StockType
+        if (backendStockType === 'website' || backendStockType === 'showroom') {
+          setStockType(backendStockType)
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('pos_stock_type', backendStockType)
+          }
+          setLoading(false)
+          return
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load POS settings from backend:', error)
+    }
+
+    // Fallback to localStorage
     const savedStockType = typeof window !== 'undefined' 
       ? localStorage.getItem('pos_stock_type') as StockType
       : null
@@ -97,8 +116,9 @@ export default function POSSettingsPage() {
         window.dispatchEvent(new CustomEvent('posStockTypeChanged', { detail: stockType }))
       }
       
-      // TODO: In the future, save to backend API
-      // await adminAPI.updatePOSSettings({ stock_type: stockType })
+      // Save to backend API
+      const { adminAPI } = await import('@/lib/api')
+      await adminAPI.updatePOSSettings({ stock_type: stockType })
       
       alert('Settings saved successfully!')
     } catch (error: any) {

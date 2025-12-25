@@ -36,10 +36,15 @@ export default function Home() {
           setProducts(response.data.products)
         } else {
           console.error('Invalid response format:', response.data)
+          setProducts([])
         }
       } catch (error: any) {
         console.error('Failed to fetch products:', error)
-        console.error('Error details:', error.response?.data || error.message)
+        // Handle rate limiting gracefully - set empty array instead of showing stale data
+        if (error.response?.status === 429) {
+          console.warn('Rate limit exceeded. Please wait a moment.')
+        }
+        setProducts([]) // Clear products on error to prevent showing stale data
       } finally {
         setLoading(false)
       }
@@ -50,7 +55,7 @@ export default function Home() {
   }, [selectedCategory])
 
   return (
-    <div className="min-h-screen bg-[#1a1a1a]">
+    <div className="min-h-screen bg-whitesmoke">
       {/* Hero Banner Section - Porto Shop 18 Style */}
       <section className="relative bg-gradient-to-br from-[#1a1a1a] via-[#2a2a2a] to-[#1a1a1a] py-20 overflow-hidden">
         <div className="container mx-auto px-4 relative z-10">
@@ -93,10 +98,10 @@ export default function Home() {
       </section>
 
       {/* Featured Products Section */}
-      <section className="py-16 bg-[#1a1a1a]">
+      <section className="py-16 bg-whitesmoke">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between mb-12">
-            <h2 className="text-4xl font-bold text-white">Featured Products</h2>
+            <h2 className="text-4xl font-bold text-gray-900">Featured Products</h2>
             <Link
               href="/products"
               className="text-[#ff6b35] hover:text-[#ff8c5a] font-semibold flex items-center space-x-2 transition"
@@ -109,8 +114,8 @@ export default function Home() {
           <div className="flex gap-6">
             {/* Categories Sidebar */}
             <aside className="w-64 flex-shrink-0">
-              <div className="bg-[#2a2a2a] rounded-lg p-4 border border-gray-700 sticky top-4">
-                <h3 className="text-lg font-bold text-white mb-4 flex items-center space-x-2">
+              <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm sticky top-4">
+                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center space-x-2">
                   <FiTag className="w-5 h-5 text-[#ff6b35]" />
                   <span>Categories</span>
                 </h3>
@@ -121,7 +126,7 @@ export default function Home() {
                       className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
                         selectedCategory === null
                           ? 'bg-[#ff6b35] text-white'
-                          : 'text-gray-300 hover:bg-[#1a1a1a] hover:text-white'
+                          : 'text-gray-700 hover:bg-gray-100'
                       }`}
                     >
                       All Categories
@@ -134,7 +139,7 @@ export default function Home() {
                         className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
                           selectedCategory === category.id
                             ? 'bg-[#ff6b35] text-white'
-                            : 'text-gray-300 hover:bg-[#1a1a1a] hover:text-white'
+                            : 'text-gray-700 hover:bg-gray-100'
                         }`}
                       >
                         {category.name}
@@ -150,11 +155,11 @@ export default function Home() {
               {loading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {[...Array(9)].map((_, i) => (
-                    <div key={i} className="bg-[#2a2a2a] rounded-lg overflow-hidden h-96 animate-pulse">
-                      <div className="h-64 bg-gray-700"></div>
+                    <div key={i} className="bg-white rounded-lg overflow-hidden h-96 animate-pulse shadow-sm border border-gray-200">
+                      <div className="h-64 bg-gray-200"></div>
                       <div className="p-4 space-y-2">
-                        <div className="h-4 bg-gray-700 rounded w-3/4"></div>
-                        <div className="h-4 bg-gray-700 rounded w-1/2"></div>
+                        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                        <div className="h-4 bg-gray-200 rounded w-1/2"></div>
                       </div>
                     </div>
                   ))}
@@ -172,44 +177,44 @@ export default function Home() {
       </section>
 
       {/* Features Section */}
-      <section className="py-16 bg-[#2a2a2a] border-t border-gray-800">
+      <section className="py-16 bg-white border-t border-gray-200">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="text-center">
-              <div className="bg-[#1a1a1a] w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-700">
+              <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-200">
                 <svg className="w-8 h-8 text-[#ff6b35]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold mb-2 text-white">FREE SHIPPING</h3>
-              <p className="text-gray-400">Orders Over ৳2,000</p>
+              <h3 className="text-xl font-semibold mb-2 text-gray-900">FREE SHIPPING</h3>
+              <p className="text-gray-600">Orders Over ৳2,000</p>
             </div>
             <div className="text-center">
-              <div className="bg-[#1a1a1a] w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-700">
+              <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-200">
                 <svg className="w-8 h-8 text-[#ff6b35]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold mb-2 text-white">24/7 SUPPORT</h3>
-              <p className="text-gray-400">We're here to help</p>
+              <h3 className="text-xl font-semibold mb-2 text-gray-900">24/7 SUPPORT</h3>
+              <p className="text-gray-600">We're here to help</p>
             </div>
             <div className="text-center">
-              <div className="bg-[#1a1a1a] w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-700">
+              <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-200">
                 <svg className="w-8 h-8 text-[#ff6b35]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold mb-2 text-white">SECURED PAYMENT</h3>
-              <p className="text-gray-400">Safe & Fast</p>
+              <h3 className="text-xl font-semibold mb-2 text-gray-900">SECURED PAYMENT</h3>
+              <p className="text-gray-600">Safe & Fast</p>
             </div>
             <div className="text-center">
-              <div className="bg-[#1a1a1a] w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-700">
+              <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-200">
                 <svg className="w-8 h-8 text-[#ff6b35]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold mb-2 text-white">FREE RETURNS</h3>
-              <p className="text-gray-400">Easy & Free</p>
+              <h3 className="text-xl font-semibold mb-2 text-gray-900">FREE RETURNS</h3>
+              <p className="text-gray-600">Easy & Free</p>
             </div>
           </div>
         </div>

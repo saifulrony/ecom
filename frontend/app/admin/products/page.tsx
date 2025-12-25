@@ -671,7 +671,7 @@ export default function AdminProductsPage() {
                           type="number"
                           value={editingFields.get(product.id)?.stock !== undefined ? editingFields.get(product.id)?.stock : product.stock}
                           onChange={(e) => handleFieldEdit(product.id, 'stock', e.target.value)}
-                          className={`w-20 px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#ff6b35] bg-white text-sm ${getStockColor(editingFields.get(product.id)?.stock !== undefined ? editingFields.get(product.id)?.stock! : product.stock)}`}
+                          className={`w-20 px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#ff6b35] bg-white text-gray-900 text-sm ${getStockColor(editingFields.get(product.id)?.stock !== undefined ? editingFields.get(product.id)?.stock! : product.stock)}`}
                           onClick={(e) => e.stopPropagation()}
                         />
                       </td>
@@ -681,7 +681,7 @@ export default function AdminProductsPage() {
                             type="number"
                             value={editingFields.get(product.id)?.pos_stock !== undefined ? editingFields.get(product.id)?.pos_stock : posStock}
                             onChange={(e) => handleFieldEdit(product.id, 'pos_stock', e.target.value)}
-                            className={`w-20 px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#ff6b35] bg-white text-sm ${getStockColor(editingFields.get(product.id)?.pos_stock !== undefined ? editingFields.get(product.id)?.pos_stock! : posStock)}`}
+                            className={`w-20 px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#ff6b35] bg-white text-gray-900 text-sm ${getStockColor(editingFields.get(product.id)?.pos_stock !== undefined ? editingFields.get(product.id)?.pos_stock! : posStock)}`}
                             onClick={(e) => e.stopPropagation()}
                           />
                         </td>

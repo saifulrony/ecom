@@ -13,8 +13,10 @@ import (
 )
 
 type ChatRequest struct {
-	Message string `json:"message" binding:"required"`
-	ChatID  uint   `json:"chat_id"` // Optional: if provided, use existing chat
+	Message    string `json:"message" binding:"required"`
+	ChatID     uint   `json:"chat_id"` // Optional: if provided, use existing chat
+	GuestName  string `json:"guest_name"` // Optional: name for guest/anonymous users
+	GuestEmail string `json:"guest_email"` // Optional: email for guest/anonymous users (for follow-up)
 }
 
 // HandleChat processes chat messages and returns AI responses
@@ -65,9 +67,13 @@ func HandleChat(c *gin.Context) {
 	if chat.ID == 0 {
 		if userID != nil {
 			// For authenticated users, try to find existing active chat
-			database.DB.Where("user_id = ? AND status = ?", *userID, "active").
+			if err := database.DB.Where("user_id = ? AND status = ?", *userID, "active").
 				Order("created_at DESC").
-				First(&chat)
+				First(&chat).Error; err == nil {
+				log.Printf("Chat: Found existing chat ID=%d for authenticated user_id=%d", chat.ID, *userID)
+			} else {
+				log.Printf("Chat: No existing chat found for user_id=%d, will create new one", *userID)
+			}
 		} else {
 			// For anonymous users: try to find active chat by IP address (fallback when localStorage is cleared)
 			// Only check chats created in the last 24 hours to avoid matching old chats
@@ -91,12 +97,41 @@ func HandleChat(c *gin.Context) {
 			IPAddress: clientIP, // Store IP for anonymous users (fallback when localStorage is cleared)
 			Status:    "active",
 		}
+		// Only set guest info for anonymous users (userID is nil)
+		if userID == nil {
+			if req.GuestName != "" {
+				chat.GuestName = req.GuestName
+			}
+			if req.GuestEmail != "" {
+				chat.GuestEmail = req.GuestEmail
+			}
+		}
 		if err := database.DB.Create(&chat).Error; err != nil {
 			log.Printf("Chat: Failed to create chat: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create chat session"})
 			return
 		}
 		log.Printf("Chat: Created new chat ID=%d for user_id=%v, ip=%s", chat.ID, userID, clientIP)
+	} else {
+		// Update guest info if provided and chat belongs to anonymous user
+		if userID == nil && chat.UserID == nil {
+			updated := false
+			if req.GuestName != "" && chat.GuestName == "" {
+				chat.GuestName = req.GuestName
+				updated = true
+			}
+			if req.GuestEmail != "" && chat.GuestEmail == "" {
+				chat.GuestEmail = req.GuestEmail
+				updated = true
+			}
+			if updated {
+				if err := database.DB.Save(&chat).Error; err != nil {
+					log.Printf("Chat: Failed to update guest info: %v", err)
+				} else {
+					log.Printf("Chat: Updated guest info for chat ID=%d", chat.ID)
+				}
+			}
+		}
 	}
 
 	// Save user message
