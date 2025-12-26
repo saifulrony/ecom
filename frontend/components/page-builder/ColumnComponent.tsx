@@ -200,51 +200,75 @@ export default function ColumnComponent({
         gridTemplateColumns: columnSizes.join(' '),
         gap: gap,
         alignItems: align,
-        padding: component.props?.padding || '0',
+        padding: component.props?.padding || '20px',
         backgroundColor: component.props?.background || 'transparent',
-        borderRadius: component.props?.radius || '0',
-        border: component.props?.border ? `1px solid ${component.props.borderColor || '#e5e7eb'}` : 'none',
-        boxShadow: component.props?.shadow ? '0 4px 6px -1px rgba(0, 0, 0, 0.1)' : 'none',
+        borderRadius: component.props?.radius || '16px',
+        border: component.props?.border ? `2px solid ${component.props.borderColor || 'rgba(255, 107, 53, 0.2)'}` : 'none',
+        boxShadow: component.props?.shadow 
+          ? '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)' 
+          : 'none',
+        background: component.props?.gradient 
+          ? `linear-gradient(135deg, ${component.props.background || 'rgba(255, 255, 255, 0.5)'} 0%, rgba(248, 250, 252, 0.5) 100%)`
+          : component.props?.background || 'transparent',
         ...component.style,
       }}
-      className={`${component.className || ''} ${isSelected ? 'ring-2 ring-[#ff6b35]' : ''} ${isHovered ? 'ring-2 ring-blue-300' : ''} ${responsive ? 'grid-cols-1 md:grid-cols-[var(--grid-cols)]' : ''}`}
+      className={`${component.className || ''} ${isSelected ? 'ring-4 ring-[#ff6b35] ring-offset-2' : ''} ${isHovered ? 'ring-2 ring-blue-400' : ''} ${responsive ? 'grid-cols-1 md:grid-cols-[var(--grid-cols)]' : ''} transition-all duration-300`}
     >
       {displayChildren.map((child, index) => (
         <div
           key={child.id}
           style={{
             position: 'relative',
-            minHeight: '100px',
+            minHeight: '120px',
+            borderRadius: '12px',
+            border: '2px solid rgba(255, 107, 53, 0.25)',
+            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%)',
+            boxShadow: resizingColumn === index
+              ? '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1), 0 0 0 4px rgba(255, 107, 53, 0.2)'
+              : '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            padding: '16px',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            transform: resizingColumn === index ? 'scale(1.02)' : 'scale(1)',
           }}
-          className={`border border-dashed border-gray-300 rounded p-2 hover:border-gray-400 transition group ${previewMode ? '' : 'hover:bg-gray-50'}`}
+          className={`group ${previewMode ? '' : 'hover:shadow-lg cursor-move'}`}
         >
           {!previewMode && (
             <>
-              {/* Resize Handle on the right */}
+              {/* Resize Handle on the right - Modern Style */}
               {index < displayChildren.length - 1 && (
                 <div
-                  className="absolute top-0 right-0 w-1 h-full bg-blue-500 cursor-ew-resize opacity-0 group-hover:opacity-100 transition z-20 hover:w-2"
+                  className="absolute top-1/2 right-0 transform -translate-y-1/2 translate-x-1/2 w-4 h-16 cursor-ew-resize opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 z-30"
                   onMouseDown={(e) => handleColumnResizeStart(e, index)}
-                  style={{ transform: 'translateX(50%)' }}
-                />
+                >
+                  <div className="w-full h-full bg-gradient-to-r from-[#ff6b35] to-[#f7931e] rounded-full shadow-lg border-2 border-white flex items-center justify-center">
+                    <div className="w-1 h-8 bg-white/50 rounded-full" />
+                  </div>
+                </div>
               )}
               
-              {/* Delete Button */}
+              {/* Delete Button - Modern Style */}
               <button
                 onClick={(e) => {
                   e.stopPropagation()
                   handleDeleteColumn(child.id)
                 }}
-                className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition hover:bg-red-700 z-20"
+                className="absolute -top-3 -right-3 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 hover:shadow-xl z-40 border-2 border-white"
                 title="Delete Column"
               >
-                <FiX className="w-3 h-3" />
+                <FiX className="w-4 h-4" />
               </button>
               
-              {/* Column Info Badge */}
-              <div className="absolute top-1 left-1 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition z-10">
-                Col {index + 1} ({columnSizes[index] || '1fr'})
+              {/* Column Info Badge - Modern Style */}
+              <div className="absolute top-2 left-2 bg-gradient-to-br from-gray-900 to-gray-800 text-white text-xs font-semibold px-3 py-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 z-20 shadow-lg border border-white/20 backdrop-blur-sm">
+                <span className="text-[#ff6b35] font-bold">Col {index + 1}</span>
+                <span className="mx-1 text-gray-400">·</span>
+                <span className="text-gray-300">{columnSizes[index] || '1fr'}</span>
               </div>
+              
+              {/* Resize Indicator */}
+              {resizingColumn === index && (
+                <div className="absolute inset-0 border-4 border-[#ff6b35] rounded-lg pointer-events-none z-50 animate-pulse" />
+              )}
             </>
           )}
           

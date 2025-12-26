@@ -44,6 +44,8 @@ import {
   FiMinus,
   FiGrid,
   FiPlus,
+  FiEdit2,
+  FiMove,
 } from 'react-icons/fi'
 import { availableComponents } from './ComponentLibrary'
 import { adminAPI } from '@/lib/api'
@@ -121,7 +123,38 @@ const getDefaultComponent = (type: ComponentType): Component => {
     },
     slider: {
       props: { autoplay: true, speed: 5000, showArrows: true, showDots: true },
-      children: [],
+      children: [
+        {
+          id: generateId(),
+          type: 'banner',
+          props: {
+            title: 'Welcome to Our Store',
+            subtitle: 'Discover amazing products at unbeatable prices',
+            height: '500px',
+            gradient: 'gradient-orange',
+          },
+        },
+        {
+          id: generateId(),
+          type: 'banner',
+          props: {
+            title: 'New Collection',
+            subtitle: 'Shop the latest trends and styles',
+            height: '500px',
+            gradient: 'gradient-primary',
+          },
+        },
+        {
+          id: generateId(),
+          type: 'banner',
+          props: {
+            title: 'Special Offers',
+            subtitle: 'Limited time deals you don\'t want to miss',
+            height: '500px',
+            gradient: 'gradient-warm',
+          },
+        },
+      ],
     },
     banner: {
       props: { title: 'Banner Title', subtitle: 'Banner subtitle', image: '', height: '400px' },
@@ -212,6 +245,51 @@ export default function PageBuilder({
     setActiveId(event.active.id as string)
   }
 
+  // Helper function to add component to a grid cell
+  const addComponentToGridCell = useCallback((components: Component[], gridComponentId: string, cellId: string, newComponent: Component): Component[] => {
+    return components.map((comp) => {
+      if (comp.id === gridComponentId && comp.type === 'grid') {
+        const updatedChildren = comp.children?.map((cell) => {
+          if (cell.id === cellId) {
+            return {
+              ...cell,
+              children: [...(cell.children || []), newComponent],
+            }
+          }
+          return cell
+        })
+        return {
+          ...comp,
+          children: updatedChildren,
+        }
+      }
+      if (comp.children) {
+        return {
+          ...comp,
+          children: addComponentToGridCell(comp.children, gridComponentId, cellId, newComponent),
+        }
+      }
+      return comp
+    })
+  }, [])
+
+  // Helper function to find grid component by cell ID
+  const findGridByCellId = useCallback((components: Component[], cellId: string): { gridId: string; gridComponent: Component } | null => {
+    for (const comp of components) {
+      if (comp.type === 'grid' && comp.children) {
+        const cell = comp.children.find((c) => c.id === cellId)
+        if (cell) {
+          return { gridId: comp.id, gridComponent: comp }
+        }
+      }
+      if (comp.children) {
+        const result = findGridByCellId(comp.children, cellId)
+        if (result) return result
+      }
+    }
+    return null
+  }, [])
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
 
@@ -222,6 +300,26 @@ export default function PageBuilder({
 
     const activeId = active.id as string
     const overId = over.id as string
+
+    // Check if dropping into a grid cell
+    if (over.id.toString().startsWith('grid-cell-')) {
+      const cellId = over.id.toString().replace('grid-cell-', '')
+      const gridInfo = findGridByCellId(components, cellId)
+      
+      if (gridInfo && active.id.toString().startsWith('library-')) {
+        // Adding new component from library to grid cell
+        const componentType = active.data.current?.componentType as ComponentType
+        if (componentType) {
+          const newComponent = getDefaultComponent(componentType)
+          const updatedComponents = addComponentToGridCell(components, gridInfo.gridId, cellId, newComponent)
+          setComponents(updatedComponents)
+          addToHistory(updatedComponents)
+          setSelectedComponentId(newComponent.id)
+        }
+      }
+      setActiveId(null)
+      return
+    }
 
     // Check if dragging from library
     if (active.id.toString().startsWith('library-')) {
@@ -286,6 +384,22 @@ export default function PageBuilder({
           setComponents(newComponents)
           addToHistory(newComponents)
         }
+      } else if (over.id.toString().startsWith('grid-cell-')) {
+        // Dropping existing component into grid cell
+        const cellId = over.id.toString().replace('grid-cell-', '')
+        const gridInfo = findGridByCellId(components, cellId)
+        
+        if (gridInfo) {
+          const draggedComponent = components.find((c) => c.id === activeId)
+          if (draggedComponent) {
+            // Remove from original position
+            const componentsWithoutDragged = components.filter((c) => c.id !== activeId)
+            // Add to grid cell
+            const updatedComponents = addComponentToGridCell(componentsWithoutDragged, gridInfo.gridId, cellId, draggedComponent)
+            setComponents(updatedComponents)
+            addToHistory(updatedComponents)
+          }
+        }
       } else {
         // Fallback: try to find by direct ID match
       const oldIndex = components.findIndex((c) => c.id === activeId)
@@ -295,7 +409,7 @@ export default function PageBuilder({
         const newComponents = arrayMove(components, oldIndex, newIndex)
         setComponents(newComponents)
         addToHistory(newComponents)
-        }
+      }
       }
     }
 
@@ -748,6 +862,7 @@ export default function PageBuilder({
             style={{ 
               minHeight: 0,
               padding: '16px',
+              height: 'auto',
             }}
           >
             {/* Ruler System */}
@@ -766,6 +881,7 @@ export default function PageBuilder({
               style={{
                 width: getCanvasWidth(),
                 minHeight: 'calc(100vh - 180px)',
+                height: 'auto',
                 transform: `scale(${zoom})`,
                 transformOrigin: 'top center',
                 marginTop: showRulers ? '20px' : '0',
@@ -1182,6 +1298,23 @@ function SortableComponent({
                 })
               }
             }}
+            onAddToCell={(cellId, newComponent) => {
+              if (component.children) {
+                const updatedChildren = component.children.map((cell) => {
+                  if (cell.id === cellId) {
+                    return {
+                      ...cell,
+                      children: [...(cell.children || []), newComponent],
+                    }
+                  }
+                  return cell
+                })
+                onUpdate({
+                  ...component,
+                  children: updatedChildren,
+                })
+              }
+            }}
             previewMode={previewMode}
           />
         ) : (
@@ -1210,14 +1343,37 @@ function SortableComponent({
           </>
         )}
       </div>
-      {!previewMode && isSelected && (
-        <div className="absolute -top-8 right-0 flex items-center space-x-2 bg-white border border-gray-300 rounded-lg shadow-lg p-1">
+      {/* Top Center Toolbar - Edit, Move, Delete */}
+      {!previewMode && (isSelected || isHovered) && (
+        <div 
+          className="absolute -top-10 left-1/2 -translate-x-1/2 flex items-center space-x-1 bg-white border border-gray-300 rounded-lg shadow-lg p-1 z-50"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onClick()
+            }}
+            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+            title="Edit"
+          >
+            <FiEdit2 className="w-4 h-4" />
+          </button>
+          <div
+            {...attributes}
+            {...listeners}
+            className="p-1.5 text-gray-600 hover:bg-gray-50 rounded transition-colors cursor-grab active:cursor-grabbing"
+            title="Move"
+          >
+            <FiMove className="w-4 h-4" />
+          </div>
           <button
             onClick={(e) => {
               e.stopPropagation()
               onDelete(component.id)
             }}
-            className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
             title="Delete"
           >
             <FiTrash2 className="w-4 h-4" />

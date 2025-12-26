@@ -1,12 +1,14 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Component } from './types'
 import Image from 'next/image'
 import Link from 'next/link'
 import { productAPI } from '@/lib/api'
 import { GridComponentRenderer } from './GridComponent'
 import { ColumnComponentRenderer } from './ColumnComponent'
+import ProductCard from '@/components/ProductCard'
+import { FiChevronLeft, FiChevronRight } from 'react-icons/fi'
 
 interface ComponentRendererProps {
   component: Component
@@ -368,6 +370,26 @@ export default function ComponentRenderer({
             onClick={onClick}
             onMouseEnter={onMouseEnter}
             onMouseLeave={onMouseLeave}
+            onUpdate={onUpdate}
+            onAddToCell={(cellId, newComponent) => {
+              if (component.children) {
+                const updatedChildren = component.children.map((cell) => {
+                  if (cell.id === cellId) {
+                    return {
+                      ...cell,
+                      children: [...(cell.children || []), newComponent],
+                    }
+                  }
+                  return cell
+                })
+                if (onUpdate) {
+                  onUpdate({
+                    ...component,
+                    children: updatedChildren,
+                  })
+                }
+              }
+            }}
             previewMode={previewMode}
           />
         )
@@ -534,15 +556,37 @@ function ProductsGridComponent({ limit, columns }: { limit: number; columns: num
     fetchProducts()
   }, [limit])
 
-  if (loading) return <div className="text-center py-8">Loading products...</div>
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {[...Array(limit || 8)].map((_, i) => (
+          <div key={i} className="bg-white rounded-lg overflow-hidden h-96 animate-pulse shadow-sm border border-gray-200">
+            <div className="h-64 bg-gray-200"></div>
+            <div className="p-4 space-y-2">
+              <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+              <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // Use dynamic grid columns based on the columns prop
+  const gridCols = {
+    1: 'grid-cols-1',
+    2: 'grid-cols-1 sm:grid-cols-2',
+    3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+    4: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+    5: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5',
+    6: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6',
+  }
+  const gridClass = gridCols[columns as keyof typeof gridCols] || gridCols[4]
 
   return (
-    <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${columns} gap-6`}>
+    <div className={`grid ${gridClass} gap-6`}>
       {products.map((product) => (
-        <div key={product.id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-4">
-          <h3 className="font-semibold">{product.name}</h3>
-          <p className="text-[#ff6b35] font-bold">৳{product.price}</p>
-        </div>
+        <ProductCard key={product.id} product={product} />
       ))}
     </div>
   )
@@ -620,9 +664,199 @@ function NewsletterComponent({ title, placeholder }: { title: string; placeholde
 }
 
 function SliderComponent({ items }: { items: Component[] }) {
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [isPlaying, setIsPlaying] = useState(true)
+  const [isPaused, setIsPaused] = useState(false)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const sliderRef = useRef<HTMLDivElement>(null)
+
+  // Default slides if no items provided
+  const defaultSlides: Component[] = [
+    {
+      id: 'default-slide-1',
+      type: 'banner',
+      props: {
+        title: 'Welcome to Our Store',
+        subtitle: 'Discover amazing products at unbeatable prices',
+        height: '500px',
+        gradient: 'gradient-orange',
+      },
+    },
+    {
+      id: 'default-slide-2',
+      type: 'banner',
+      props: {
+        title: 'New Collection',
+        subtitle: 'Shop the latest trends and styles',
+        height: '500px',
+        gradient: 'gradient-primary',
+      },
+    },
+    {
+      id: 'default-slide-3',
+      type: 'banner',
+      props: {
+        title: 'Special Offers',
+        subtitle: 'Limited time deals you don\'t want to miss',
+        height: '500px',
+        gradient: 'gradient-warm',
+      },
+    },
+  ]
+
+  const slides = items.length > 0 ? items : defaultSlides
+
+  useEffect(() => {
+    if (slides.length === 0 || isPaused) return
+
+    if (isPlaying) {
+      intervalRef.current = setInterval(() => {
+        setCurrentIndex((prev) => (prev + 1) % slides.length)
+      }, 5000) // Auto-advance every 5 seconds
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+    }
+  }, [slides.length, isPlaying, isPaused])
+
+  const goToSlide = (index: number) => {
+    setCurrentIndex(index)
+    setIsPaused(true)
+    setIsPlaying(false)
+    // Resume auto-play after 8 seconds
+    setTimeout(() => {
+      setIsPaused(false)
+      setIsPlaying(true)
+    }, 8000)
+  }
+
+  const goToPrevious = () => {
+    setCurrentIndex((prev) => (prev - 1 + slides.length) % slides.length)
+    setIsPaused(true)
+    setIsPlaying(false)
+    setTimeout(() => {
+      setIsPaused(false)
+      setIsPlaying(true)
+    }, 8000)
+  }
+
+  const goToNext = () => {
+    setCurrentIndex((prev) => (prev + 1) % slides.length)
+    setIsPaused(true)
+    setIsPlaying(false)
+    setTimeout(() => {
+      setIsPaused(false)
+      setIsPlaying(true)
+    }, 8000)
+  }
+
+  const handleMouseEnter = () => {
+    setIsPaused(true)
+  }
+
+  const handleMouseLeave = () => {
+    setIsPaused(false)
+  }
+
   return (
-    <div className="relative h-96 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300">
-      <span className="text-gray-400">Slider Component</span>
+    <div 
+      ref={sliderRef}
+      className="relative w-full overflow-hidden rounded-xl shadow-2xl group"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {/* Slider Container with Slide Animation */}
+      <div className="relative h-[400px] md:h-[600px] overflow-hidden">
+        <div 
+          className="flex transition-transform duration-700 ease-in-out h-full"
+          style={{ 
+            transform: `translateX(-${currentIndex * 100}%)`,
+            width: `${slides.length * 100}%`
+          }}
+        >
+          {slides.map((item, index) => (
+            <div
+              key={item.id}
+              className="w-full h-full flex-shrink-0"
+              style={{ width: `${100 / slides.length}%` }}
+            >
+              <ComponentRenderer
+                component={item}
+                isSelected={false}
+                isHovered={false}
+                onClick={() => {}}
+                onMouseEnter={() => {}}
+                onMouseLeave={() => {}}
+                previewMode={true}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Navigation Arrows - Always visible but more subtle */}
+      {slides.length > 1 && (
+        <>
+          <button
+            onClick={goToPrevious}
+            className="absolute left-4 top-1/2 -translate-y-1/2 z-30 bg-white/95 hover:bg-white text-gray-800 p-3 rounded-full shadow-xl transition-all duration-300 hover:scale-110 hover:shadow-2xl backdrop-blur-sm border border-gray-200/50"
+            aria-label="Previous slide"
+          >
+            <FiChevronLeft className="w-5 h-5" />
+          </button>
+          <button
+            onClick={goToNext}
+            className="absolute right-4 top-1/2 -translate-y-1/2 z-30 bg-white/95 hover:bg-white text-gray-800 p-3 rounded-full shadow-xl transition-all duration-300 hover:scale-110 hover:shadow-2xl backdrop-blur-sm border border-gray-200/50"
+            aria-label="Next slide"
+          >
+            <FiChevronRight className="w-5 h-5" />
+          </button>
+        </>
+      )}
+
+      {/* Progress Bar */}
+      {slides.length > 1 && isPlaying && !isPaused && (
+        <div className="absolute top-0 left-0 right-0 h-1 bg-white/20 z-30">
+          <div 
+            className="h-full bg-[#ff6b35] transition-all duration-100 ease-linear"
+            style={{ 
+              width: `${((currentIndex + 1) / slides.length) * 100}%`
+            }}
+          />
+        </div>
+      )}
+
+      {/* Dots Indicator - Enhanced Design */}
+      {slides.length > 1 && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex gap-2.5 items-center bg-black/30 backdrop-blur-md px-4 py-2 rounded-full">
+          {slides.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => goToSlide(index)}
+              className={`rounded-full transition-all duration-300 ${
+                index === currentIndex
+                  ? 'w-3 h-3 bg-[#ff6b35] shadow-lg shadow-[#ff6b35]/50'
+                  : 'w-2 h-2 bg-white/70 hover:bg-white hover:scale-125'
+              }`}
+              aria-label={`Go to slide ${index + 1}`}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Slide Counter */}
+      {slides.length > 1 && (
+        <div className="absolute top-4 right-4 z-30 bg-black/40 backdrop-blur-md text-white text-xs font-medium px-3 py-1.5 rounded-full">
+          {currentIndex + 1} / {slides.length}
+        </div>
+      )}
     </div>
   )
 }

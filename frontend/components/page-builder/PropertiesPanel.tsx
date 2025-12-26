@@ -22,9 +22,19 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
   const [uploading, setUploading] = useState(false)
   const [imagePreview, setImagePreview] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [expandedSlides, setExpandedSlides] = useState<Set<string>>(new Set())
+  const slideFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   // Use refs to store debounce timers (declare before useEffect that uses them)
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const styleUpdateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Track if we're updating from this component to avoid resetting state
+  const isInternalUpdateRef = useRef(false)
+  // Track the component ID to detect when a different component is selected
+  const currentComponentIdRef = useRef<string | null>(null)
+  // Track which input field is currently focused to prevent resets
+  const focusedInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null)
+  // Track the last update time to prevent rapid resets
+  const lastUpdateTimeRef = useRef<number>(0)
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     spacing: false,
     positioning: false,
@@ -39,18 +49,41 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
   })
 
   useEffect(() => {
-    if (component) {
+    // Only update localComponent if:
+    // 1. Component is null (deselected)
+    // 2. Component ID changed (different component selected)
+    // 3. Not an internal update (to avoid resetting while typing)
+    // 4. No input is currently focused
+    const componentId = component?.id || null
+    const now = Date.now()
+    
+    // Skip update if:
+    // - This is an internal update (user is typing)
+    // - An input is currently focused
+    // - Update happened very recently (within 500ms)
+    if (isInternalUpdateRef.current || 
+        focusedInputRef.current !== null ||
+        (now - lastUpdateTimeRef.current < 500)) {
+      return
+    }
+    
+    if (!component) {
+      setLocalComponent(null)
+      setImagePreview('')
+      currentComponentIdRef.current = null
+    } else if (componentId !== currentComponentIdRef.current) {
+      // Different component selected - update local state
       setLocalComponent(component)
+      currentComponentIdRef.current = componentId
       // Set image preview if component has an image src
       if (component.props?.src) {
         setImagePreview(component.props.src)
       } else {
         setImagePreview('')
       }
-    } else {
-      setLocalComponent(null)
-      setImagePreview('')
     }
+    // Don't update localComponent if component ID is the same and it's not an internal update
+    // This prevents resetting the input while user is typing
     
     // Cleanup timeouts on unmount or component change
     return () => {
@@ -95,6 +128,36 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
     }
   }
 
+  const handleSlideImageUpload = async (file: File, slideId: string): Promise<void> => {
+    const url = await handleImageUpload(file)
+    if (url && localComponent && localComponent.children) {
+      const updated = {
+        ...localComponent,
+        children: localComponent.children.map(s =>
+          s.id === slideId ? { ...s, props: { ...s.props, image: url } } : s
+        ),
+      }
+      setLocalComponent(updated)
+      onUpdate(updated)
+    }
+    // Reset input
+    if (slideFileInputRefs.current[slideId]) {
+      slideFileInputRefs.current[slideId].value = ''
+    }
+  }
+
+  const toggleSlideExpansion = (slideId: string) => {
+    setExpandedSlides(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(slideId)) {
+        newSet.delete(slideId)
+      } else {
+        newSet.add(slideId)
+      }
+      return newSet
+    })
+  }
+
   if (!component || !localComponent) {
     return (
       <div className="w-80 bg-white border-l border-gray-200 h-full flex items-center justify-center">
@@ -111,6 +174,11 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
 
   const updateProp = (key: string, value: any) => {
     if (!localComponent) return
+    
+    // Mark as internal update BEFORE updating state
+    isInternalUpdateRef.current = true
+    lastUpdateTimeRef.current = Date.now()
+    
     const updated = {
       ...localComponent,
       props: {
@@ -128,6 +196,10 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
     // Debounce the parent update to avoid re-renders on every keystroke
     updateTimeoutRef.current = setTimeout(() => {
       onUpdate(updated)
+      // Keep flag set for a bit longer to prevent useEffect from resetting
+      setTimeout(() => {
+        isInternalUpdateRef.current = false
+      }, 200)
     }, 300)
   }
 
@@ -157,6 +229,11 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
 
   const updateStyle = (key: string, value: any) => {
     if (!localComponent) return
+    
+    // Mark as internal update BEFORE updating state
+    isInternalUpdateRef.current = true
+    lastUpdateTimeRef.current = Date.now()
+    
     const updated = {
       ...localComponent,
       style: {
@@ -174,17 +251,29 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
     // Debounce the parent update to avoid re-renders on every keystroke
     styleUpdateTimeoutRef.current = setTimeout(() => {
       onUpdate(updated)
+      // Keep flag set for a bit longer to prevent useEffect from resetting
+      setTimeout(() => {
+        isInternalUpdateRef.current = false
+      }, 200)
     }, 300)
   }
 
   const updateContent = (value: string) => {
     if (!localComponent) return
+    
+    // Mark as internal update BEFORE updating state
+    isInternalUpdateRef.current = true
+    
     const updated = {
       ...localComponent,
       content: value,
     }
     setLocalComponent(updated)
     onUpdate(updated)
+    // Keep flag set for a bit longer to prevent useEffect from resetting
+    setTimeout(() => {
+      isInternalUpdateRef.current = false
+    }, 100)
   }
 
   const toggleSection = (section: string) => {
@@ -195,8 +284,8 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
     return localComponent?.style?.[key as keyof React.CSSProperties] || ''
   }
 
-  // Reusable Input Components
-  const InputField = ({ label, value, onChange, type = 'text', placeholder = '', min, max, step }: {
+  // Reusable Input Components - Memoized to prevent unnecessary re-renders
+  const InputField = React.memo(({ label, value, onChange, type = 'text', placeholder = '', min, max, step }: {
     label: string
     value: any
     onChange: (value: any) => void
@@ -206,11 +295,32 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
     max?: number
     step?: number
   }) => {
+    const inputRef = useRef<HTMLInputElement>(null)
+    const [localValue, setLocalValue] = useState(value != null ? String(value) : '')
+    const isControlledRef = useRef(false)
+    
+    // Update local value when prop changes (but only if input is not focused)
+    useEffect(() => {
+      const newValue = value != null ? String(value) : ''
+      const isFocused = document.activeElement === inputRef.current
+      
+      // Only update if:
+      // 1. Value actually changed
+      // 2. Input is not focused
+      // 3. We're not in the middle of typing (not controlled)
+      if (newValue !== localValue && !isFocused && !isControlledRef.current) {
+        setLocalValue(newValue)
+      }
+    }, [value, localValue])
+    
     // For number inputs, keep as string to allow values like "100px"
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const inputValue = e.target.value
+      isControlledRef.current = true
+      setLocalValue(inputValue)
+      
       if (type === 'number') {
         // Only convert to number if it's a pure number, otherwise keep as string
-        const inputValue = e.target.value
         if (inputValue === '' || inputValue === '-') {
           onChange(inputValue)
         } else {
@@ -224,20 +334,38 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
           }
         }
       } else {
-        onChange(e.target.value)
+        onChange(inputValue)
       }
+      
+      // Reset controlled flag after a short delay
+      setTimeout(() => {
+        isControlledRef.current = false
+      }, 100)
     }
-
-    // Convert number value to string for display
-    const displayValue = value != null ? String(value) : ''
+    
+    const handleFocus = () => {
+      focusedInputRef.current = inputRef.current
+    }
+    
+    const handleBlur = () => {
+      if (focusedInputRef.current === inputRef.current) {
+        focusedInputRef.current = null
+      }
+      // Sync value on blur
+      const newValue = value != null ? String(value) : ''
+      setLocalValue(newValue)
+    }
 
     return (
       <div>
         <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5">{label}</label>
         <input
+          ref={inputRef}
           type={type === 'number' ? 'text' : type}
-          value={displayValue}
+          value={localValue}
           onChange={handleChange}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           placeholder={placeholder}
           min={min}
           max={max}
@@ -246,7 +374,7 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
         />
       </div>
     )
-  }
+  })
 
   const ColorPicker = ({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) => (
     <div>
@@ -303,7 +431,7 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
   const renderContentTab = () => {
     if (!localComponent) return null
     
-    switch (component.type) {
+    switch (localComponent.type) {
       case 'heading':
         return (
           <div className="space-y-3">
@@ -384,6 +512,8 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Text</label>
               <textarea
                 value={localComponent?.props?.text || localComponent?.content || ''}
+                onFocus={() => { focusedInputRef.current = document.activeElement as HTMLTextAreaElement }}
+                onBlur={() => { if (focusedInputRef.current === document.activeElement) focusedInputRef.current = null }}
                 onChange={(e) => {
                   updateProp('text', e.target.value)
                   updateContent(e.target.value)
@@ -747,6 +877,8 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Content</label>
               <textarea
                 value={localComponent?.props?.content || 'Card content'}
+                onFocus={() => { focusedInputRef.current = document.activeElement as HTMLTextAreaElement }}
+                onBlur={() => { if (focusedInputRef.current === document.activeElement) focusedInputRef.current = null }}
                 onChange={(e) => updateProp('content', e.target.value)}
                 rows={4}
                 className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#ff6b35] focus:border-transparent"
@@ -1421,10 +1553,479 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
           </div>
         )
 
+      case 'slider':
+        return (
+          <div className="flex flex-col h-full -m-4 sm:-m-6">
+            <div className="pt-3 border-t border-gray-200 flex-shrink-0 px-4 sm:px-6">
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700">
+                  Slides ({localComponent?.children?.length || 0})
+                </label>
+                <button
+                  onClick={() => {
+                    if (localComponent) {
+                      const generateId = () => `slide-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+                      const currentSlides = localComponent.children || []
+                      const gradients = ['gradient-orange', 'gradient-primary', 'gradient-warm', 'gradient-cool']
+                      const gradient = gradients[currentSlides.length % gradients.length]
+                      
+                      const newSlide: Component = {
+                        id: generateId(),
+                        type: 'banner',
+                        props: {
+                          title: `Slide ${currentSlides.length + 1}`,
+                          subtitle: 'Add your subtitle here',
+                          height: '500px',
+                          gradient: gradient,
+                        },
+                      }
+                      const updated = {
+                        ...localComponent,
+                        children: [...currentSlides, newSlide],
+                      }
+                      setLocalComponent(updated)
+                      onUpdate(updated)
+                      // Auto-expand the new slide
+                      setExpandedSlides(prev => new Set([...prev, newSlide.id]))
+                    }
+                  }}
+                  className="text-xs px-2.5 py-1.5 bg-[#ff6b35] text-white rounded hover:bg-[#ff8c5a] transition flex items-center gap-1.5"
+                >
+                  <FiPlus className="w-3.5 h-3.5" />
+                  Add Slide
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 space-y-1.5 min-h-0 px-4 sm:px-6 pb-4 sm:pb-6">
+                {localComponent?.children?.map((slide, index) => {
+                  const isExpanded = expandedSlides.has(slide.id)
+                  const slideImage = slide.props?.image || ''
+                  
+                  return (
+                    <div key={slide.id} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                      {/* Accordion Header */}
+                      <button
+                        onClick={() => toggleSlideExpansion(slide.id)}
+                        className="w-full flex items-center justify-between p-3 hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                          <div className="flex-shrink-0">
+                            {isExpanded ? (
+                              <FiChevronDown className="w-4 h-4 text-gray-500" />
+                            ) : (
+                              <FiChevronUp className="w-4 h-4 text-gray-500" />
+                            )}
+                          </div>
+                          <span className="text-xs font-medium text-gray-700 truncate">
+                            Slide {index + 1}: {slide.props?.title || 'Untitled'}
+                          </span>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (localComponent && localComponent.children) {
+                              const updated = {
+                                ...localComponent,
+                                children: localComponent.children.filter(s => s.id !== slide.id),
+                              }
+                              setLocalComponent(updated)
+                              onUpdate(updated)
+                              // Remove from expanded set
+                              setExpandedSlides(prev => {
+                                const newSet = new Set(prev)
+                                newSet.delete(slide.id)
+                                return newSet
+                              })
+                            }
+                          }}
+                          className="text-red-600 hover:text-red-800 hover:bg-red-50 p-1.5 rounded transition-colors flex-shrink-0 ml-2"
+                          title="Delete Slide"
+                        >
+                          <FiX className="w-3.5 h-3.5" />
+                        </button>
+                      </button>
+                      
+                      {/* Accordion Content */}
+                      {isExpanded && (
+                        <div className="border-t border-gray-200 bg-gray-50 max-h-[400px] overflow-y-auto">
+                          <div className="p-3 space-y-3">
+                          <InputField
+                            label="Title"
+                            value={slide.props?.title || ''}
+                            onChange={(val) => {
+                              if (localComponent && localComponent.children) {
+                                const updated = {
+                                  ...localComponent,
+                                  children: localComponent.children.map(s =>
+                                    s.id === slide.id ? { ...s, props: { ...s.props, title: val } } : s
+                                  ),
+                                }
+                                setLocalComponent(updated)
+                                onUpdate(updated)
+                              }
+                            }}
+                          />
+                          <InputField
+                            label="Subtitle"
+                            value={slide.props?.subtitle || ''}
+                            onChange={(val) => {
+                              if (localComponent && localComponent.children) {
+                                const updated = {
+                                  ...localComponent,
+                                  children: localComponent.children.map(s =>
+                                    s.id === slide.id ? { ...s, props: { ...s.props, subtitle: val } } : s
+                                  ),
+                                }
+                                setLocalComponent(updated)
+                                onUpdate(updated)
+                              }
+                            }}
+                          />
+                          
+                          {/* Image Upload Section */}
+                          <div>
+                            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5">
+                              Image
+                            </label>
+                            {slideImage ? (
+                              <div className="relative w-full h-32 bg-gray-100 rounded-lg overflow-hidden mb-2 border border-gray-200">
+                                <Image
+                                  src={slideImage}
+                                  alt="Slide preview"
+                                  fill
+                                  className="object-cover"
+                                  sizes="(max-width: 640px) 100vw, 320px"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (localComponent && localComponent.children) {
+                                      const updated = {
+                                        ...localComponent,
+                                        children: localComponent.children.map(s =>
+                                          s.id === slide.id ? { ...s, props: { ...s.props, image: '' } } : s
+                                        ),
+                                      }
+                                      setLocalComponent(updated)
+                                      onUpdate(updated)
+                                    }
+                                    if (slideFileInputRefs.current[slide.id]) {
+                                      slideFileInputRefs.current[slide.id].value = ''
+                                    }
+                                  }}
+                                  className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-full hover:bg-red-700 transition"
+                                  aria-label="Remove image"
+                                >
+                                  <FiX className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 text-center hover:border-[#ff6b35] transition">
+                                <FiImage className="w-5 h-5 text-gray-400 mx-auto mb-1.5" />
+                                <label className="cursor-pointer">
+                                  <span className="text-xs text-gray-600 block mb-1.5">
+                                    Click to upload image
+                                  </span>
+                                  <div className="inline-flex items-center space-x-1.5 bg-[#ff6b35] text-white px-2.5 py-1 rounded-lg hover:bg-[#ff8c5a] transition text-xs">
+                                    <FiUpload className="w-3 h-3" />
+                                    <span>Choose File</span>
+                                  </div>
+                                  <input
+                                    ref={(el) => {
+                                      slideFileInputRefs.current[slide.id] = el
+                                    }}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0]
+                                      if (file) {
+                                        handleSlideImageUpload(file, slide.id)
+                                      }
+                                    }}
+                                    disabled={uploading}
+                                    className="hidden"
+                                  />
+                                </label>
+                                {uploading && (
+                                  <p className="text-xs text-gray-500 mt-1.5">Uploading...</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          
+                          <SelectField
+                            label="Gradient (if no image)"
+                            value={slide.props?.gradient || 'gradient-orange'}
+                            onChange={(val) => {
+                              if (localComponent && localComponent.children) {
+                                const updated = {
+                                  ...localComponent,
+                                  children: localComponent.children.map(s =>
+                                    s.id === slide.id ? { ...s, props: { ...s.props, gradient: val } } : s
+                                  ),
+                                }
+                                setLocalComponent(updated)
+                                onUpdate(updated)
+                              }
+                            }}
+                            options={[
+                              { value: 'none', label: 'None' },
+                              { value: 'gradient-primary', label: 'Primary Purple' },
+                              { value: 'gradient-warm', label: 'Warm Pink' },
+                              { value: 'gradient-cool', label: 'Cool Blue' },
+                              { value: 'gradient-orange', label: 'Orange' },
+                            ]}
+                          />
+                          <InputField
+                            label="Height"
+                            value={slide.props?.height || '500px'}
+                            onChange={(val) => {
+                              if (localComponent && localComponent.children) {
+                                const updated = {
+                                  ...localComponent,
+                                  children: localComponent.children.map(s =>
+                                    s.id === slide.id ? { ...s, props: { ...s.props, height: val } } : s
+                                  ),
+                                }
+                                setLocalComponent(updated)
+                                onUpdate(updated)
+                              }
+                            }}
+                            placeholder="500px"
+                          />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+                {(!localComponent?.children || localComponent.children.length === 0) && (
+                  <div className="text-center text-gray-400 py-6 text-xs border border-gray-200 rounded-lg bg-gray-50">
+                    <p className="font-medium mb-1">No slides added yet.</p>
+                    <p className="text-gray-500">Click "Add Slide" to create your first slide.</p>
+                  </div>
+                )}
+            </div>
+          </div>
+        )
+
+      case 'spacer':
+        return (
+          <div className="space-y-3">
+            <InputField
+              label="Height"
+              value={localComponent?.props?.height || '50px'}
+              onChange={(val) => updateProp('height', val)}
+              placeholder="50px"
+            />
+          </div>
+        )
+
+      case 'divider':
+        return (
+          <div className="space-y-3">
+            <ColorPicker
+              label="Color"
+              value={localComponent?.props?.color || '#e5e7eb'}
+              onChange={(val) => updateProp('color', val)}
+            />
+            <InputField
+              label="Height"
+              value={localComponent?.props?.height || '1px'}
+              onChange={(val) => updateProp('height', val)}
+              placeholder="1px"
+            />
+            <InputField
+              label="Width"
+              value={localComponent?.props?.width || '100%'}
+              onChange={(val) => updateProp('width', val)}
+              placeholder="100%"
+            />
+          </div>
+        )
+
+      case 'video':
+        return (
+          <div className="space-y-3">
+            <InputField
+              label="Video URL"
+              value={localComponent?.props?.url || ''}
+              onChange={(val) => updateProp('url', val)}
+              placeholder="https://www.youtube.com/watch?v=..."
+            />
+            <InputField
+              label="Width"
+              value={localComponent?.props?.width || '100%'}
+              onChange={(val) => updateProp('width', val)}
+              placeholder="100%"
+            />
+            <InputField
+              label="Height"
+              value={localComponent?.props?.height || '400px'}
+              onChange={(val) => updateProp('height', val)}
+              placeholder="400px"
+            />
+          </div>
+        )
+
+      case 'form':
+      case 'contact-form':
+        return (
+          <div className="space-y-3">
+            <InputField
+              label="Form Title"
+              value={localComponent?.props?.title || 'Contact Us'}
+              onChange={(val) => updateProp('title', val)}
+            />
+            <InputField
+              label="Submit Button Text"
+              value={localComponent?.props?.submitText || 'Send Message'}
+              onChange={(val) => updateProp('submitText', val)}
+            />
+          </div>
+        )
+
+      case 'newsletter':
+        return (
+          <div className="space-y-3">
+            <InputField
+              label="Title"
+              value={localComponent?.props?.title || 'Subscribe to Newsletter'}
+              onChange={(val) => updateProp('title', val)}
+            />
+            <InputField
+              label="Placeholder"
+              value={localComponent?.props?.placeholder || 'Enter your email'}
+              onChange={(val) => updateProp('placeholder', val)}
+            />
+          </div>
+        )
+
+      case 'product-search':
+        return (
+          <div className="space-y-3">
+            <InputField
+              label="Placeholder"
+              value={localComponent?.props?.placeholder || 'Search products...'}
+              onChange={(val) => updateProp('placeholder', val)}
+            />
+          </div>
+        )
+
+      case 'testimonials':
+        return (
+          <div className="space-y-3">
+            <div className="text-sm text-gray-600">
+              <p>Testimonials are managed through the component children.</p>
+            </div>
+          </div>
+        )
+
+      case 'faq':
+        return (
+          <div className="space-y-3">
+            <div className="text-sm text-gray-600">
+              <p>FAQ items are managed through the component children.</p>
+            </div>
+          </div>
+        )
+
+      case 'code-block':
+        return (
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5">Code</label>
+              <textarea
+                value={localComponent?.props?.code || ''}
+                onChange={(e) => updateProp('code', e.target.value)}
+                rows={8}
+                className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base font-mono border border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#ff6b35] focus:border-transparent"
+                placeholder="// Your code here"
+              />
+            </div>
+            <ColorPicker
+              label="Background Color"
+              value={localComponent?.props?.bgColor || '#1a1a1a'}
+              onChange={(val) => updateProp('bgColor', val)}
+            />
+            <ColorPicker
+              label="Text Color"
+              value={localComponent?.props?.textColor || '#ffffff'}
+              onChange={(val) => updateProp('textColor', val)}
+            />
+            <InputField
+              label="Padding"
+              value={localComponent?.props?.padding || '20px'}
+              onChange={(val) => updateProp('padding', val)}
+              placeholder="20px"
+            />
+          </div>
+        )
+
+      case 'alert':
+        return (
+          <div className="space-y-3">
+            <InputField
+              label="Alert Text"
+              value={localComponent?.props?.text || localComponent?.content || ''}
+              onChange={(val) => {
+                updateProp('text', val)
+                updateContent(val)
+              }}
+            />
+            <SelectField
+              label="Alert Type"
+              value={localComponent?.props?.type || 'info'}
+              onChange={(val) => updateProp('type', val)}
+              options={[
+                { value: 'info', label: 'Info' },
+                { value: 'success', label: 'Success' },
+                { value: 'warning', label: 'Warning' },
+                { value: 'error', label: 'Error' },
+              ]}
+            />
+            <ColorPicker
+              label="Background Color"
+              value={localComponent?.props?.bgColor || ''}
+              onChange={(val) => updateProp('bgColor', val)}
+            />
+            <ColorPicker
+              label="Border Color"
+              value={localComponent?.props?.borderColor || ''}
+              onChange={(val) => updateProp('borderColor', val)}
+            />
+            <ColorPicker
+              label="Text Color"
+              value={localComponent?.props?.textColor || ''}
+              onChange={(val) => updateProp('textColor', val)}
+            />
+          </div>
+        )
+
+      case 'social-icons':
+        return (
+          <div className="space-y-3">
+            <SelectField
+              label="Size"
+              value={localComponent?.props?.size || 'md'}
+              onChange={(val) => updateProp('size', val)}
+              options={[
+                { value: 'sm', label: 'Small' },
+                { value: 'md', label: 'Medium' },
+                { value: 'lg', label: 'Large' },
+              ]}
+            />
+            <div className="text-sm text-gray-600">
+              <p>Social media platforms are managed through the component props.</p>
+            </div>
+          </div>
+        )
+
       default:
         return (
           <div className="text-center text-gray-500 py-8 text-sm">
             <p>No content properties for this component type.</p>
+            <p className="text-xs mt-2 text-gray-400">Component type: {localComponent?.type}</p>
           </div>
         )
     }
@@ -2397,12 +2998,19 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Inline Styles (JSON)</label>
               <textarea
                 value={JSON.stringify(localComponent?.style || {}, null, 2)}
+                onFocus={() => { focusedInputRef.current = document.activeElement as HTMLTextAreaElement }}
+                onBlur={() => { if (focusedInputRef.current === document.activeElement) focusedInputRef.current = null }}
                 onChange={(e) => {
                   try {
                     const parsed = JSON.parse(e.target.value)
                     const updated = { ...localComponent, style: parsed }
                     setLocalComponent(updated)
+                    isInternalUpdateRef.current = true
+                    lastUpdateTimeRef.current = Date.now()
                     onUpdate(updated)
+                    setTimeout(() => {
+                      isInternalUpdateRef.current = false
+                    }, 200)
                   } catch (err) {
                     // Invalid JSON, ignore
                   }
@@ -2542,12 +3150,19 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
           <label className="block text-xs font-medium text-gray-700 mb-1.5">Inline Styles (JSON)</label>
           <textarea
             value={JSON.stringify(localComponent?.style || {}, null, 2)}
+            onFocus={() => { focusedInputRef.current = document.activeElement as HTMLTextAreaElement }}
+            onBlur={() => { if (focusedInputRef.current === document.activeElement) focusedInputRef.current = null }}
             onChange={(e) => {
               try {
                 const parsed = JSON.parse(e.target.value)
                 const updated = { ...localComponent, style: parsed }
                 setLocalComponent(updated)
+                isInternalUpdateRef.current = true
+                lastUpdateTimeRef.current = Date.now()
                 onUpdate(updated)
+                setTimeout(() => {
+                  isInternalUpdateRef.current = false
+                }, 200)
               } catch (err) {
                 // Invalid JSON, ignore
               }
@@ -2569,7 +3184,7 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
   ]
 
   return (
-    <div className="w-80 bg-white border-l border-gray-200 h-full flex flex-col shadow-sm">
+    <div className="w-80 bg-white border-l border-gray-200 h-screen flex flex-col shadow-sm">
       {/* Header */}
       <div className="p-4 sm:p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
         <div className="flex items-center justify-between mb-2">
