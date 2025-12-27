@@ -23,6 +23,8 @@ import {
   FiMessageCircle,
   FiHelpCircle,
   FiX,
+  FiChevronDown,
+  FiList,
 } from 'react-icons/fi'
 import { ComponentType } from './types'
 
@@ -63,6 +65,8 @@ export const availableComponents: ComponentItem[] = [
   // Forms
   { type: 'contact-form', label: 'Contact Form', icon: FiMail, color: 'text-indigo-600', category: 'Forms' },
   { type: 'newsletter', label: 'Newsletter', icon: FiMail, color: 'text-purple-600', category: 'Forms' },
+  { type: 'dropdown', label: 'Dropdown', icon: FiChevronDown, color: 'text-blue-600', category: 'Forms' },
+  { type: 'select', label: 'Select', icon: FiList, color: 'text-green-600', category: 'Forms' },
   
   // Content
   { type: 'testimonials', label: 'Testimonials', icon: FiMessageCircle, color: 'text-purple-600', category: 'Content' },

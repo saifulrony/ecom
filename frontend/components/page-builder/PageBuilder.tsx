@@ -64,8 +64,9 @@ const generateId = () => `comp-${Date.now()}-${Math.random().toString(36).substr
 const getDefaultComponent = (type: ComponentType): Component => {
   const defaults: Record<ComponentType, Partial<Component>> = {
     heading: {
-      props: { text: 'Heading Text', level: 'h1', align: 'left', color: '#000000', fontSize: '2.5rem' },
+      props: { text: 'Heading Text', level: 'h1', align: 'left', color: '#000000', fontSize: '2.5rem', background: '#ffffff' },
       content: 'Heading Text',
+      style: { color: '#000000', backgroundColor: '#ffffff' },
     },
     text: {
       props: { text: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.', align: 'left', color: '#333333' },
@@ -107,10 +108,26 @@ const getDefaultComponent = (type: ComponentType): Component => {
       props: { fields: [] },
     },
     'products-grid': {
-      props: { limit: 12, columns: 4 },
+      props: { 
+        limit: 12, 
+        columns: 4,
+        showCategory: true,
+        showWishlist: true,
+        showCartButton: true,
+        showViewDetails: false,
+        hideStockOut: false,
+      },
     },
     'featured-products': {
-      props: { limit: 6, columns: 3 },
+      props: { 
+        limit: 6, 
+        columns: 3,
+        showCategory: true,
+        showWishlist: true,
+        showCartButton: true,
+        showViewDetails: false,
+        hideStockOut: false,
+      },
     },
     'product-search': {
       props: { placeholder: 'Search products...' },
@@ -120,6 +137,26 @@ const getDefaultComponent = (type: ComponentType): Component => {
     },
     newsletter: {
       props: { title: 'Subscribe to Newsletter', placeholder: 'Enter your email' },
+    },
+    dropdown: {
+      props: { 
+        label: 'Select Option', 
+        placeholder: 'Choose an option',
+        options: ['Option 1', 'Option 2', 'Option 3'],
+        value: '',
+        required: false,
+      },
+    },
+    select: {
+      props: { 
+        name: 'select',
+        id: 'select',
+        label: 'Select', 
+        options: ['Option 1', 'Option 2', 'Option 3'],
+        value: '',
+        required: false,
+        multiple: false,
+      },
     },
     slider: {
       props: { autoplay: true, speed: 5000, showArrows: true, showDots: true },
@@ -245,51 +282,6 @@ export default function PageBuilder({
     setActiveId(event.active.id as string)
   }
 
-  // Helper function to add component to a grid cell
-  const addComponentToGridCell = useCallback((components: Component[], gridComponentId: string, cellId: string, newComponent: Component): Component[] => {
-    return components.map((comp) => {
-      if (comp.id === gridComponentId && comp.type === 'grid') {
-        const updatedChildren = comp.children?.map((cell) => {
-          if (cell.id === cellId) {
-            return {
-              ...cell,
-              children: [...(cell.children || []), newComponent],
-            }
-          }
-          return cell
-        })
-        return {
-          ...comp,
-          children: updatedChildren,
-        }
-      }
-      if (comp.children) {
-        return {
-          ...comp,
-          children: addComponentToGridCell(comp.children, gridComponentId, cellId, newComponent),
-        }
-      }
-      return comp
-    })
-  }, [])
-
-  // Helper function to find grid component by cell ID
-  const findGridByCellId = useCallback((components: Component[], cellId: string): { gridId: string; gridComponent: Component } | null => {
-    for (const comp of components) {
-      if (comp.type === 'grid' && comp.children) {
-        const cell = comp.children.find((c) => c.id === cellId)
-        if (cell) {
-          return { gridId: comp.id, gridComponent: comp }
-        }
-      }
-      if (comp.children) {
-        const result = findGridByCellId(comp.children, cellId)
-        if (result) return result
-      }
-    }
-    return null
-  }, [])
-
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
 
@@ -300,26 +292,6 @@ export default function PageBuilder({
 
     const activeId = active.id as string
     const overId = over.id as string
-
-    // Check if dropping into a grid cell
-    if (over.id.toString().startsWith('grid-cell-')) {
-      const cellId = over.id.toString().replace('grid-cell-', '')
-      const gridInfo = findGridByCellId(components, cellId)
-      
-      if (gridInfo && active.id.toString().startsWith('library-')) {
-        // Adding new component from library to grid cell
-        const componentType = active.data.current?.componentType as ComponentType
-        if (componentType) {
-          const newComponent = getDefaultComponent(componentType)
-          const updatedComponents = addComponentToGridCell(components, gridInfo.gridId, cellId, newComponent)
-          setComponents(updatedComponents)
-          addToHistory(updatedComponents)
-          setSelectedComponentId(newComponent.id)
-        }
-      }
-      setActiveId(null)
-      return
-    }
 
     // Check if dragging from library
     if (active.id.toString().startsWith('library-')) {
@@ -384,22 +356,6 @@ export default function PageBuilder({
           setComponents(newComponents)
           addToHistory(newComponents)
         }
-      } else if (over.id.toString().startsWith('grid-cell-')) {
-        // Dropping existing component into grid cell
-        const cellId = over.id.toString().replace('grid-cell-', '')
-        const gridInfo = findGridByCellId(components, cellId)
-        
-        if (gridInfo) {
-          const draggedComponent = components.find((c) => c.id === activeId)
-          if (draggedComponent) {
-            // Remove from original position
-            const componentsWithoutDragged = components.filter((c) => c.id !== activeId)
-            // Add to grid cell
-            const updatedComponents = addComponentToGridCell(componentsWithoutDragged, gridInfo.gridId, cellId, draggedComponent)
-            setComponents(updatedComponents)
-            addToHistory(updatedComponents)
-          }
-        }
       } else {
         // Fallback: try to find by direct ID match
       const oldIndex = components.findIndex((c) => c.id === activeId)
@@ -409,7 +365,7 @@ export default function PageBuilder({
         const newComponents = arrayMove(components, oldIndex, newIndex)
         setComponents(newComponents)
         addToHistory(newComponents)
-      }
+        }
       }
     }
 
@@ -939,7 +895,7 @@ export default function PageBuilder({
 
           {/* Properties Panel */}
           {!previewMode && (
-            <div className="bg-white border-l border-gray-200 flex-shrink-0 relative z-10">
+            <div className="bg-white border-l border-gray-200 flex-shrink-0 relative z-10 h-full overflow-hidden flex flex-col">
               <PropertiesPanel
                 component={selectedComponent || null}
                 onUpdate={handleUpdateComponent}
@@ -1292,23 +1248,6 @@ function SortableComponent({
             onDeleteCell={(cellId) => {
               if (component.children) {
                 const updatedChildren = component.children.filter(c => c.id !== cellId)
-                onUpdate({
-                  ...component,
-                  children: updatedChildren,
-                })
-              }
-            }}
-            onAddToCell={(cellId, newComponent) => {
-              if (component.children) {
-                const updatedChildren = component.children.map((cell) => {
-                  if (cell.id === cellId) {
-                    return {
-                      ...cell,
-                      children: [...(cell.children || []), newComponent],
-                    }
-                  }
-                  return cell
-                })
                 onUpdate({
                   ...component,
                   children: updatedChildren,

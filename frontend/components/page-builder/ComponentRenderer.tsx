@@ -85,13 +85,15 @@ export default function ComponentRenderer({
         const HeadingTag = (component.props?.level || 'h1') as keyof JSX.IntrinsicElements
         const headingGradient = component.props?.gradient
         const headingColor = component.props?.color || '#000000'
+        const backgroundColor = component.style?.backgroundColor || component.props?.background || component.props?.backgroundColor || '#ffffff'
         
         return (
           <HeadingTag
             style={{
+              backgroundColor: backgroundColor,
               background: headingGradient && headingGradient !== 'none' 
                 ? getGradientBackground(headingGradient, headingColor)
-                : headingColor,
+                : undefined,
               WebkitBackgroundClip: headingGradient && headingGradient !== 'none' ? 'text' : undefined,
               WebkitTextFillColor: headingGradient && headingGradient !== 'none' ? 'transparent' : undefined,
               backgroundClip: headingGradient && headingGradient !== 'none' ? 'text' : undefined,
@@ -371,25 +373,8 @@ export default function ComponentRenderer({
             onMouseEnter={onMouseEnter}
             onMouseLeave={onMouseLeave}
             onUpdate={onUpdate}
-            onAddToCell={(cellId, newComponent) => {
-              if (component.children) {
-                const updatedChildren = component.children.map((cell) => {
-                  if (cell.id === cellId) {
-                    return {
-                      ...cell,
-                      children: [...(cell.children || []), newComponent],
-                    }
-                  }
-                  return cell
-                })
-                if (onUpdate) {
-                  onUpdate({
-                    ...component,
-                    children: updatedChildren,
-                  })
-                }
-              }
-            }}
+            onDelete={onDelete}
+            onDeleteCell={onDelete}
             previewMode={previewMode}
           />
         )
@@ -435,7 +420,19 @@ export default function ComponentRenderer({
         )
 
       case 'products-grid':
-        return <ProductsGridComponent limit={component.props?.limit || 12} columns={component.props?.columns || 4} />
+        return (
+          <div className="mb-16 pb-8">
+            <ProductsGridComponent 
+              limit={component.props?.limit || 12} 
+              columns={component.props?.columns || 4}
+              showCategory={component.props?.showCategory !== false}
+              showWishlist={component.props?.showWishlist !== false}
+              showCartButton={component.props?.showCartButton !== false}
+              showViewDetails={component.props?.showViewDetails === true}
+              hideStockOut={component.props?.hideStockOut === true}
+            />
+          </div>
+        )
 
       case 'featured-products':
         return <FeaturedProductsComponent limit={component.props?.limit || 6} columns={component.props?.columns || 3} />
@@ -513,7 +510,171 @@ export default function ComponentRenderer({
         )
 
       case 'social-icons':
+        return (
+          <div style={{ textAlign: component.props?.align || 'center', ...baseStyle }} className={component.className}>
+            <div className="flex items-center justify-center gap-4 flex-wrap">
+              {component.props?.icons?.map((icon: any, index: number) => (
+                <a
+                  key={index}
+                  href={icon.url || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-2xl hover:scale-110 transition-transform"
+                  style={{ color: icon.color || '#666' }}
+                >
+                  {icon.name}
+                </a>
+              )) || (
+                <div className="text-gray-500 text-sm">Add social icons in properties</div>
+              )}
+            </div>
+          </div>
+        )
+
+      case 'social-icons':
         return <SocialIconsComponent platforms={component.props?.platforms || []} size={component.props?.size || 'md'} />
+
+      case 'dropdown': {
+        const [dropdownOpen, setDropdownOpen] = useState(false)
+        const dropdownRef = useRef<HTMLDivElement>(null)
+        const dropdownOptions = component.props?.options || ['Option 1', 'Option 2', 'Option 3']
+        const dropdownValue = component.props?.value || ''
+        const dropdownLabel = component.props?.label || ''
+        const dropdownPlaceholder = component.props?.placeholder || 'Choose an option'
+        const dropdownRequired = component.props?.required || false
+
+        // Close dropdown when clicking outside
+        useEffect(() => {
+          const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+              setDropdownOpen(false)
+            }
+          }
+          if (dropdownOpen) {
+            document.addEventListener('mousedown', handleClickOutside)
+          }
+          return () => {
+            document.removeEventListener('mousedown', handleClickOutside)
+          }
+        }, [dropdownOpen])
+
+        return (
+          <div ref={dropdownRef} style={{ ...baseStyle, position: 'relative' }} className={component.className}>
+            {dropdownLabel && (
+              <label className="block text-sm font-semibold text-gray-800 mb-2.5">
+                {dropdownLabel}
+                {dropdownRequired && <span className="text-red-500 ml-1">*</span>}
+              </label>
+            )}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                className={`w-full px-4 py-3 text-left bg-white border-2 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-[#ff6b35] focus:border-[#ff6b35] transition-all duration-200 flex items-center justify-between ${
+                  dropdownOpen 
+                    ? 'border-[#ff6b35] shadow-md' 
+                    : 'border-gray-200 hover:border-gray-300 hover:shadow-md'
+                }`}
+                style={baseStyle}
+              >
+                <span className={`text-base ${dropdownValue ? 'text-gray-900 font-medium' : 'text-gray-400'}`}>
+                  {dropdownValue || dropdownPlaceholder}
+                </span>
+                <svg
+                  className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${dropdownOpen ? 'transform rotate-180 text-[#ff6b35]' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {dropdownOpen && (
+                <div className="absolute z-50 w-full mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-2xl max-h-64 overflow-auto animate-in fade-in slide-in-from-top-2 duration-200">
+                  {dropdownOptions.map((option: string, index: number) => (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() => {
+                        if (onUpdate) {
+                          onUpdate({
+                            ...component,
+                            props: {
+                              ...component.props,
+                              value: option,
+                            },
+                          })
+                        }
+                        setDropdownOpen(false)
+                      }}
+                      className={`w-full px-4 py-3 text-left transition-all duration-150 flex items-center justify-between ${
+                        dropdownValue === option
+                          ? 'bg-[#ff6b35]/10 text-[#ff6b35] font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      } ${index === 0 ? 'rounded-t-xl' : ''} ${index === dropdownOptions.length - 1 ? 'rounded-b-xl' : ''}`}
+                    >
+                      <span className="text-base">{option}</span>
+                      {dropdownValue === option && (
+                        <svg className="w-5 h-5 text-[#ff6b35]" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      }
+
+      case 'select': {
+        const selectOptions = component.props?.options || ['Option 1', 'Option 2', 'Option 3']
+        const selectValue = component.props?.value || ''
+        const selectName = component.props?.name || 'select'
+        const selectId = component.props?.id || selectName
+        const selectLabel = component.props?.label || ''
+        const selectRequired = component.props?.required || false
+        const selectMultiple = component.props?.multiple || false
+
+        return (
+          <div style={baseStyle} className={component.className}>
+            {selectLabel && (
+              <label htmlFor={selectId} className="block text-sm font-medium text-gray-700 mb-2">
+                {selectLabel}
+                {selectRequired && <span className="text-red-500 ml-1">*</span>}
+              </label>
+            )}
+            <select
+              name={selectName}
+              id={selectId}
+              multiple={selectMultiple}
+              value={selectValue}
+              onChange={(e) => {
+                if (onUpdate) {
+                  onUpdate({
+                    ...component,
+                    props: {
+                      ...component.props,
+                      value: selectMultiple 
+                        ? Array.from(e.target.selectedOptions, option => option.value)
+                        : e.target.value,
+                    },
+                  })
+                }
+              }}
+              required={selectRequired}
+              style={baseStyle}
+            >
+              {selectOptions.map((option: string, index: number) => (
+                <option key={index} value={option.toLowerCase().replace(/\s+/g, '-')}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </div>
+        )
+      }
 
       default:
         return (
@@ -524,13 +685,38 @@ export default function ComponentRenderer({
     }
   }
 
+  // Get hover animation from component style
+  const hoverAnimation = component.style?.hoverAnimation || ''
+  const baseAnimation = component.style?.animation || ''
+  
   return (
     <div
       data-component-content
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
+      onMouseEnter={(e) => {
+        onMouseEnter()
+        // Apply hover animation if available
+        if (hoverAnimation && e.currentTarget) {
+          const target = e.currentTarget
+          if (target instanceof HTMLElement) {
+            target.style.animation = hoverAnimation
+          }
+        }
+      }}
+      onMouseLeave={(e) => {
+        onMouseLeave()
+        // Restore base animation on hover out
+        if (hoverAnimation && e.currentTarget) {
+          const target = e.currentTarget
+          if (target instanceof HTMLElement) {
+            target.style.animation = baseAnimation || ''
+          }
+        }
+      }}
       onClick={onClick}
-      style={previewMode ? {} : { position: 'relative' }}
+      style={{
+        ...(previewMode ? {} : { position: 'relative' }),
+        animation: baseAnimation || undefined,
+      }}
     >
       {renderComponent()}
     </div>
@@ -538,14 +724,34 @@ export default function ComponentRenderer({
 }
 
 // Dynamic Components
-function ProductsGridComponent({ limit, columns }: { limit: number; columns: number }) {
+function ProductsGridComponent({ 
+  limit, 
+  columns,
+  showCategory = true,
+  showWishlist = true,
+  showCartButton = true,
+  showViewDetails = false,
+  hideStockOut = false
+}: { 
+  limit: number
+  columns: number
+  showCategory?: boolean
+  showWishlist?: boolean
+  showCartButton?: boolean
+  showViewDetails?: boolean
+  hideStockOut?: boolean
+}) {
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const response = await productAPI.getProducts({ limit, page: 1 })
+        const params: any = { limit, page: 1 }
+        if (hideStockOut) {
+          params.in_stock = 'true'
+        }
+        const response = await productAPI.getProducts(params)
         setProducts(response.data.products || [])
       } catch (error) {
         console.error('Failed to fetch products:', error)
@@ -554,7 +760,7 @@ function ProductsGridComponent({ limit, columns }: { limit: number; columns: num
       }
     }
     fetchProducts()
-  }, [limit])
+  }, [limit, hideStockOut])
 
   if (loading) {
     return (
@@ -583,10 +789,23 @@ function ProductsGridComponent({ limit, columns }: { limit: number; columns: num
   }
   const gridClass = gridCols[columns as keyof typeof gridCols] || gridCols[4]
 
+  // Filter products if hideStockOut is enabled
+  const filteredProducts = hideStockOut 
+    ? products.filter(product => product.stock > 0)
+    : products
+
   return (
-    <div className={`grid ${gridClass} gap-6`}>
-      {products.map((product) => (
-        <ProductCard key={product.id} product={product} />
+    <div className={`grid ${gridClass} gap-6 mb-8`}>
+      {filteredProducts.map((product) => (
+        <ProductCard 
+          key={product.id} 
+          product={product}
+          showCategory={showCategory}
+          showWishlist={showWishlist}
+          showCartButton={showCartButton}
+          showViewDetails={showViewDetails}
+          hideStockOut={hideStockOut}
+        />
       ))}
     </div>
   )

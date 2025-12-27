@@ -22,7 +22,7 @@ export default function PageRenderer({ components }: PageRendererProps) {
   }
 
   return (
-    <div className="w-full">
+    <div className="w-full pb-20 mb-8">
       {components.map((component) => (
         <ComponentRenderer
           key={component.id}

@@ -5,7 +5,7 @@ import { Component } from './types'
 import { FiTrash2, FiChevronDown, FiChevronUp, FiCode, FiType, FiDroplet, FiZap, FiUpload, FiX, FiImage, FiPlus } from 'react-icons/fi'
 import Image from 'next/image'
 import { adminAPI } from '@/lib/api'
-import { gridTemplates } from './GridComponent'
+import { gridTemplates, generateCellsForTemplate } from './GridComponent'
 import { columnTemplates } from './ColumnComponent'
 
 interface PropertiesPanelProps {
@@ -35,6 +35,9 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
   const focusedInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null)
   // Track the last update time to prevent rapid resets
   const lastUpdateTimeRef = useRef<number>(0)
+  // Animation preview state
+  const [previewingAnimation, setPreviewingAnimation] = useState<string | null>(null)
+  const animationPreviewRef = useRef<HTMLDivElement | null>(null)
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     spacing: false,
     positioning: false,
@@ -46,6 +49,8 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
     effects: false,
     otherEffects: false,
     advanced: false,
+    animationTypes: true,
+    animationControls: false,
   })
 
   useEffect(() => {
@@ -277,7 +282,18 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
   }
 
   const toggleSection = (section: string) => {
-    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }))
+    setExpandedSections(prev => {
+      // Accordion behavior: close all sections first, then open the clicked one if it wasn't already open
+      const newState: Record<string, boolean> = {}
+      Object.keys(prev).forEach(key => {
+        newState[key] = false
+      })
+      // If the clicked section was closed, open it
+      if (!prev[section]) {
+        newState[section] = true
+      }
+      return newState
+    })
   }
 
   const getStyleValue = (key: string) => {
@@ -297,26 +313,26 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
   }) => {
     const inputRef = useRef<HTMLInputElement>(null)
     const [localValue, setLocalValue] = useState(value != null ? String(value) : '')
-    const isControlledRef = useRef(false)
+    const isFocusedRef = useRef(false)
+    const lastPropValueRef = useRef(value)
     
-    // Update local value when prop changes (but only if input is not focused)
+    // Only sync from prop when not focused and value actually changed externally
     useEffect(() => {
       const newValue = value != null ? String(value) : ''
-      const isFocused = document.activeElement === inputRef.current
       
       // Only update if:
-      // 1. Value actually changed
-      // 2. Input is not focused
-      // 3. We're not in the middle of typing (not controlled)
-      if (newValue !== localValue && !isFocused && !isControlledRef.current) {
+      // 1. Value actually changed from external source
+      // 2. Input is not currently focused
+      // 3. The prop value is different from what we last saw
+      if (!isFocusedRef.current && newValue !== lastPropValueRef.current && newValue !== localValue) {
         setLocalValue(newValue)
+        lastPropValueRef.current = value
       }
-    }, [value, localValue])
+    }, [value])
     
     // For number inputs, keep as string to allow values like "100px"
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const inputValue = e.target.value
-      isControlledRef.current = true
       setLocalValue(inputValue)
       
       if (type === 'number') {
@@ -336,24 +352,23 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
       } else {
         onChange(inputValue)
       }
-      
-      // Reset controlled flag after a short delay
-      setTimeout(() => {
-        isControlledRef.current = false
-      }, 100)
+      lastPropValueRef.current = inputValue
     }
     
     const handleFocus = () => {
+      isFocusedRef.current = true
       focusedInputRef.current = inputRef.current
     }
     
     const handleBlur = () => {
+      isFocusedRef.current = false
       if (focusedInputRef.current === inputRef.current) {
         focusedInputRef.current = null
       }
       // Sync value on blur
       const newValue = value != null ? String(value) : ''
       setLocalValue(newValue)
+      lastPropValueRef.current = value
     }
 
     return (
@@ -384,13 +399,13 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
           type="color"
           value={value || '#000000'}
           onChange={(e) => onChange(e.target.value)}
-          className="w-12 h-10 rounded-lg border border-gray-300 cursor-pointer"
+          className="w-10 h-10 rounded-lg border border-gray-300 cursor-pointer hover:border-[#ff6b35] transition-colors flex-shrink-0"
         />
         <input
           type="text"
           value={value || ''}
           onChange={(e) => onChange(e.target.value)}
-          className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#ff6b35] focus:border-transparent"
+          className="w-32 px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#ff6b35] focus:border-transparent"
           placeholder="#000000"
         />
       </div>
@@ -416,6 +431,291 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
       </select>
     </div>
   )
+
+  // Spacing input group with shared unit selector (for margin/padding)
+  const SpacingInputGroup = React.memo(({ 
+    title, 
+    topValue, 
+    rightValue, 
+    bottomValue, 
+    leftValue, 
+    onTopChange, 
+    onRightChange, 
+    onBottomChange, 
+    onLeftChange 
+  }: {
+    title: string
+    topValue: string | number | undefined
+    rightValue: string | number | undefined
+    bottomValue: string | number | undefined
+    leftValue: string | number | undefined
+    onTopChange: (value: string) => void
+    onRightChange: (value: string) => void
+    onBottomChange: (value: string) => void
+    onLeftChange: (value: string) => void
+  }) => {
+    // Helper to parse value (extract number)
+    const parseValue = (value: string | number | undefined): string => {
+      if (!value) return ''
+      const strVal = String(value).trim()
+      const match = strVal.match(/^(-?\d*\.?\d+)(px|em|%|rem)?$/)
+      return match ? match[1] : strVal.replace(/(px|em|%|rem)$/i, '')
+    }
+    
+    // Extract unit from any existing value (default to px)
+    const getInitialUnit = (): string => {
+      const values = [topValue, rightValue, bottomValue, leftValue]
+      for (const val of values) {
+        if (val) {
+          const strVal = String(val).trim()
+          const match = strVal.match(/(px|em|%|rem)$/)
+          if (match) return match[1]
+        }
+      }
+      return 'px'
+    }
+    
+    const [unit, setUnit] = useState(getInitialUnit)
+    const topInputRef = useRef<HTMLInputElement>(null)
+    const rightInputRef = useRef<HTMLInputElement>(null)
+    const bottomInputRef = useRef<HTMLInputElement>(null)
+    const leftInputRef = useRef<HTMLInputElement>(null)
+    const [topLocal, setTopLocal] = useState(parseValue(topValue))
+    const [rightLocal, setRightLocal] = useState(parseValue(rightValue))
+    const [bottomLocal, setBottomLocal] = useState(parseValue(bottomValue))
+    const [leftLocal, setLeftLocal] = useState(parseValue(leftValue))
+    const focusedRef = useRef<HTMLInputElement | null>(null)
+    
+    // Sync local values when props change (if not focused)
+    useEffect(() => {
+      if (focusedRef.current !== topInputRef.current) setTopLocal(parseValue(topValue))
+      if (focusedRef.current !== rightInputRef.current) setRightLocal(parseValue(rightValue))
+      if (focusedRef.current !== bottomInputRef.current) setBottomLocal(parseValue(bottomValue))
+      if (focusedRef.current !== leftInputRef.current) setLeftLocal(parseValue(leftValue))
+    }, [topValue, rightValue, bottomValue, leftValue])
+    
+    const handleInputChange = (
+      value: string, 
+      setLocal: (v: string) => void, 
+      onChange: (v: string) => void
+    ) => {
+      setLocal(value)
+      onChange(value === '' ? '' : `${value}${unit}`)
+    }
+    
+    const handleBlur = (
+      value: string,
+      setLocal: (v: string) => void,
+      onChange: (v: string) => void
+    ) => {
+      const cleanValue = value.replace(/(px|em|%|rem)$/i, '')
+      setLocal(cleanValue)
+      onChange(cleanValue === '' ? '' : `${cleanValue}${unit}`)
+      focusedRef.current = null
+    }
+    
+    const handleUnitChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const newUnit = e.target.value
+      setUnit(newUnit)
+      
+      // Update all fields with new unit
+      const updateField = (value: string, onChange: (v: string) => void) => {
+        if (value) {
+          const num = value.replace(/(px|em|%|rem)$/i, '')
+          if (num) onChange(`${num}${newUnit}`)
+        }
+      }
+      
+      updateField(topLocal, onTopChange)
+      updateField(rightLocal, onRightChange)
+      updateField(bottomLocal, onBottomChange)
+      updateField(leftLocal, onLeftChange)
+    }
+    
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide">{title}</label>
+          <select
+            value={unit}
+            onChange={handleUnitChange}
+            className="px-2 py-1 text-xs border border-gray-300 rounded text-gray-900 bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#ff6b35] focus:border-transparent cursor-pointer"
+          >
+            <option value="px">px</option>
+            <option value="em">em</option>
+            <option value="%">%</option>
+            <option value="rem">rem</option>
+          </select>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Top</label>
+            <input
+              ref={topInputRef}
+              type="text"
+              value={topLocal}
+              onChange={(e) => handleInputChange(e.target.value, setTopLocal, onTopChange)}
+              onFocus={() => { focusedRef.current = topInputRef.current }}
+              onBlur={() => handleBlur(topLocal, setTopLocal, onTopChange)}
+              placeholder="0"
+              className="w-full px-2 py-2 text-sm border border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#ff6b35] focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Right</label>
+            <input
+              ref={rightInputRef}
+              type="text"
+              value={rightLocal}
+              onChange={(e) => handleInputChange(e.target.value, setRightLocal, onRightChange)}
+              onFocus={() => { focusedRef.current = rightInputRef.current }}
+              onBlur={() => handleBlur(rightLocal, setRightLocal, onRightChange)}
+              placeholder="0"
+              className="w-full px-2 py-2 text-sm border border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#ff6b35] focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Bottom</label>
+            <input
+              ref={bottomInputRef}
+              type="text"
+              value={bottomLocal}
+              onChange={(e) => handleInputChange(e.target.value, setBottomLocal, onBottomChange)}
+              onFocus={() => { focusedRef.current = bottomInputRef.current }}
+              onBlur={() => handleBlur(bottomLocal, setBottomLocal, onBottomChange)}
+              placeholder="0"
+              className="w-full px-2 py-2 text-sm border border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#ff6b35] focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Left</label>
+            <input
+              ref={leftInputRef}
+              type="text"
+              value={leftLocal}
+              onChange={(e) => handleInputChange(e.target.value, setLeftLocal, onLeftChange)}
+              onFocus={() => { focusedRef.current = leftInputRef.current }}
+              onBlur={() => handleBlur(leftLocal, setLeftLocal, onLeftChange)}
+              placeholder="0"
+              className="w-full px-2 py-2 text-sm border border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#ff6b35] focus:border-transparent"
+            />
+          </div>
+        </div>
+      </div>
+    )
+  })
+
+  // Input field with unit selector (px, em, %, rem)
+  const InputWithUnit = React.memo(({ label, value, onChange }: {
+    label: string
+    value: string | number | undefined
+    onChange: (value: string) => void
+  }) => {
+    const inputRef = useRef<HTMLInputElement>(null)
+    const [localValue, setLocalValue] = useState('')
+    const [unit, setUnit] = useState('px')
+    const isFocusedRef = useRef(false)
+    const lastPropValueRef = useRef(value)
+    
+    // Parse value to extract number and unit
+    useEffect(() => {
+      const strValue = value != null ? String(value).trim() : ''
+      
+      // Only update if value changed externally and input is not focused
+      if (!isFocusedRef.current && strValue !== String(lastPropValueRef.current || '')) {
+        // Match patterns like "10px", "10", "10.5em", "10%", etc.
+        const match = strValue.match(/^(-?\d*\.?\d+)(px|em|%|rem)?$/)
+        
+        if (match) {
+          const numValue = match[1]
+          const extractedUnit = match[2] || 'px'
+          setLocalValue(numValue)
+          setUnit(extractedUnit)
+        } else if (strValue === '') {
+          setLocalValue('')
+          setUnit('px')
+        } else {
+          // If value doesn't match pattern, just display it as is
+          setLocalValue(strValue)
+          setUnit('px')
+        }
+        lastPropValueRef.current = value
+      }
+    }, [value])
+    
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const inputValue = e.target.value
+      setLocalValue(inputValue)
+      // Combine number and unit, or just use empty string if input is empty
+      const combinedValue = inputValue === '' ? '' : `${inputValue}${unit}`
+      onChange(combinedValue)
+    }
+    
+    const handleUnitChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const newUnit = e.target.value
+      setUnit(newUnit)
+      // Update value with new unit only if we have a number value
+      if (localValue !== '') {
+        const combinedValue = `${localValue}${newUnit}`
+        onChange(combinedValue)
+        lastPropValueRef.current = combinedValue
+      }
+    }
+    
+    const handleFocus = () => {
+      isFocusedRef.current = true
+      focusedInputRef.current = inputRef.current
+    }
+    
+    const handleBlur = () => {
+      isFocusedRef.current = false
+      if (focusedInputRef.current === inputRef.current) {
+        focusedInputRef.current = null
+      }
+      // Ensure value is properly formatted on blur
+      if (localValue !== '') {
+        // Remove any trailing unit if user typed it manually
+        const cleanValue = localValue.replace(/(px|em|%|rem)$/i, '')
+        if (cleanValue !== localValue) {
+          setLocalValue(cleanValue)
+        }
+        const combinedValue = `${cleanValue}${unit}`
+        onChange(combinedValue)
+        lastPropValueRef.current = combinedValue
+      } else {
+        onChange('')
+        lastPropValueRef.current = ''
+      }
+    }
+
+    return (
+      <div>
+        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5">{label}</label>
+        <div className="flex items-stretch">
+          <input
+            ref={inputRef}
+            type="text"
+            value={localValue}
+            onChange={handleInputChange}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            placeholder="0"
+            className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-l-lg rounded-r-none text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#ff6b35] focus:border-transparent"
+          />
+          <select
+            value={unit}
+            onChange={handleUnitChange}
+            className="px-2 sm:px-3 py-2 text-xs sm:text-sm border border-l-0 border-gray-300 rounded-r-lg rounded-l-none text-gray-900 bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#ff6b35] focus:border-transparent cursor-pointer"
+          >
+            <option value="px">px</option>
+            <option value="em">em</option>
+            <option value="%">%</option>
+            <option value="rem">rem</option>
+          </select>
+        </div>
+      </div>
+    )
+  })
 
   const SectionHeader = ({ title, isExpanded, onToggle }: { title: string; isExpanded: boolean; onToggle: () => void }) => (
     <button
@@ -454,52 +754,6 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
                 { value: 'h4', label: 'H4' },
                 { value: 'h5', label: 'H5' },
                 { value: 'h6', label: 'H6' },
-              ]}
-            />
-            <SelectField
-              label="Gradient (Text Gradient)"
-              value={localComponent?.props?.gradient || 'none'}
-              onChange={(val) => updateProp('gradient', val)}
-              options={[
-                { value: 'none', label: 'None' },
-                { value: 'gradient-primary', label: 'Primary Purple' },
-                { value: 'gradient-warm', label: 'Warm Pink' },
-                { value: 'gradient-cool', label: 'Cool Blue' },
-                { value: 'gradient-orange', label: 'Orange' },
-              ]}
-            />
-            <ColorPicker
-              label="Text Color (if no gradient)"
-              value={localComponent?.props?.color || '#000000'}
-              onChange={(val) => updateProp('color', val)}
-            />
-            <InputField
-              label="Font Size"
-              value={localComponent?.props?.fontSize || '2.5rem'}
-              onChange={(val) => updateProp('fontSize', val)}
-              placeholder="2.5rem"
-            />
-            <SelectField
-              label="Font Weight"
-              value={localComponent?.props?.fontWeight || 'bold'}
-              onChange={(val) => updateProp('fontWeight', val)}
-              options={[
-                { value: 'normal', label: 'Normal' },
-                { value: 'medium', label: 'Medium' },
-                { value: 'semibold', label: 'Semibold' },
-                { value: 'bold', label: 'Bold' },
-                { value: 'extrabold', label: 'Extra Bold' },
-              ]}
-            />
-            <SelectField
-              label="Text Align"
-              value={localComponent?.props?.align || 'left'}
-              onChange={(val) => updateProp('align', val)}
-              options={[
-                { value: 'left', label: 'Left' },
-                { value: 'center', label: 'Center' },
-                { value: 'right', label: 'Right' },
-                { value: 'justify', label: 'Justify' },
               ]}
             />
           </div>
@@ -1052,28 +1306,11 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
                   updateProp('columns', template.columns)
                   updateProp('rows', template.rows)
                   
-                  // Generate cells for the template (replace existing cells)
+                  // Generate cells for the template using the helper function
                   if (localComponent) {
                     const generateId = () => `cell-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-                    const newCells: Component[] = []
-                    for (let i = 0; i < template.cells; i++) {
-                      const row = Math.floor(i / template.columns) + 1
-                      const col = (i % template.columns) + 1
-                      newCells.push({
-                        id: generateId(),
-                        type: 'text',
-                        props: {
-                          text: `Cell ${i + 1}`,
-                          gridCell: {
-                            columnStart: col,
-                            rowStart: row,
-                            columnSpan: 1,
-                            rowSpan: 1,
-                          },
-                        },
-                        content: `Cell ${i + 1}`,
-                      })
-                    }
+                    const newCells = generateCellsForTemplate(val, generateId)
+                    
                     const updated = {
                       ...localComponent,
                       children: newCells,
@@ -1082,6 +1319,7 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
                         template: val,
                         columns: template.columns,
                         rows: template.rows,
+                        useCustomWidths: false, // Only enable when cells are resized
                       },
                     }
                     setLocalComponent(updated)
@@ -1092,13 +1330,15 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
                 }
               }}
               options={[
-                { value: '2x2', label: '2x2 Grid (4 cells)' },
-                { value: '3x3', label: '3x3 Grid (9 cells)' },
-                { value: '4x4', label: '4x4 Grid (16 cells)' },
-                { value: '2x3', label: '2x3 Grid (6 cells)' },
-                { value: '3x2', label: '3x2 Grid (6 cells)' },
-                { value: '4x2', label: '4x2 Grid (8 cells)' },
-                { value: '2x4', label: '2x4 Grid (8 cells)' },
+                { value: 'layout-1', label: 'Layout 1: Full-Width Hero' },
+                { value: 'layout-2', label: 'Layout 2: Split Hero (50/50)' },
+                { value: 'layout-3', label: 'Layout 3: Asymmetric Hero (2/3 + 1/3)' },
+                { value: 'layout-4', label: 'Layout 4: Three Equal Columns' },
+                { value: 'layout-5', label: 'Layout 5: Four Equal Columns' },
+                { value: 'layout-6', label: 'Layout 6: Masonry Large Left' },
+                { value: 'layout-7', label: 'Layout 7: Masonry Large Right' },
+                { value: 'layout-8', label: 'Layout 8: Gallery Grid (4x2)' },
+                { value: 'layout-9', label: 'Layout 9: Complex Asymmetric' },
                 { value: 'custom', label: 'Custom Grid' },
               ]}
             />
@@ -1493,7 +1733,7 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
       case 'products-grid':
       case 'featured-products':
         return (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <InputField
               label="Number of Products"
               value={localComponent?.props?.limit || 12}
@@ -1510,6 +1750,61 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
               min={1}
               max={6}
             />
+            
+            {/* Customization Options */}
+            <div className="pt-2 border-t border-gray-200 space-y-3">
+              <label className="text-sm font-semibold text-gray-700 block">Display Options</label>
+              
+              <label className="flex items-center justify-between cursor-pointer group">
+                <span className="text-sm text-gray-600 group-hover:text-gray-900">Show Category</span>
+                <input
+                  type="checkbox"
+                  checked={localComponent?.props?.showCategory !== false}
+                  onChange={(e) => updateProp('showCategory', e.target.checked)}
+                  className="w-4 h-4 text-[#ff6b35] rounded focus:ring-[#ff6b35] focus:ring-2 cursor-pointer"
+                />
+              </label>
+              
+              <label className="flex items-center justify-between cursor-pointer group">
+                <span className="text-sm text-gray-600 group-hover:text-gray-900">Show Wishlist Icon</span>
+                <input
+                  type="checkbox"
+                  checked={localComponent?.props?.showWishlist !== false}
+                  onChange={(e) => updateProp('showWishlist', e.target.checked)}
+                  className="w-4 h-4 text-[#ff6b35] rounded focus:ring-[#ff6b35] focus:ring-2 cursor-pointer"
+                />
+              </label>
+              
+              <label className="flex items-center justify-between cursor-pointer group">
+                <span className="text-sm text-gray-600 group-hover:text-gray-900">Show Cart Button</span>
+                <input
+                  type="checkbox"
+                  checked={localComponent?.props?.showCartButton !== false}
+                  onChange={(e) => updateProp('showCartButton', e.target.checked)}
+                  className="w-4 h-4 text-[#ff6b35] rounded focus:ring-[#ff6b35] focus:ring-2 cursor-pointer"
+                />
+              </label>
+              
+              <label className="flex items-center justify-between cursor-pointer group">
+                <span className="text-sm text-gray-600 group-hover:text-gray-900">Show View Details Icon</span>
+                <input
+                  type="checkbox"
+                  checked={localComponent?.props?.showViewDetails === true}
+                  onChange={(e) => updateProp('showViewDetails', e.target.checked)}
+                  className="w-4 h-4 text-[#ff6b35] rounded focus:ring-[#ff6b35] focus:ring-2 cursor-pointer"
+                />
+              </label>
+              
+              <label className="flex items-center justify-between cursor-pointer group">
+                <span className="text-sm text-gray-600 group-hover:text-gray-900">Hide Out of Stock Products</span>
+                <input
+                  type="checkbox"
+                  checked={localComponent?.props?.hideStockOut === true}
+                  onChange={(e) => updateProp('hideStockOut', e.target.checked)}
+                  className="w-4 h-4 text-[#ff6b35] rounded focus:ring-[#ff6b35] focus:ring-2 cursor-pointer"
+                />
+              </label>
+            </div>
           </div>
         )
 
@@ -1901,6 +2196,100 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
           </div>
         )
 
+      case 'dropdown':
+        return (
+          <div className="space-y-3">
+            <InputField
+              label="Label"
+              value={localComponent?.props?.label || 'Select Option'}
+              onChange={(val) => updateProp('label', val)}
+            />
+            <InputField
+              label="Placeholder"
+              value={localComponent?.props?.placeholder || 'Choose an option'}
+              onChange={(val) => updateProp('placeholder', val)}
+            />
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Options (one per line)</label>
+              <textarea
+                value={(localComponent?.props?.options || ['Option 1', 'Option 2', 'Option 3']).join('\n')}
+                onChange={(e) => {
+                  const options = e.target.value.split('\n').filter(line => line.trim())
+                  updateProp('options', options.length > 0 ? options : ['Option 1'])
+                }}
+                rows={5}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#ff6b35] focus:border-transparent"
+                placeholder="Option 1&#10;Option 2&#10;Option 3"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={localComponent?.props?.required || false}
+                onChange={(e) => updateProp('required', e.target.checked)}
+                className="w-4 h-4 text-[#ff6b35] border-gray-300 rounded focus:ring-[#ff6b35]"
+              />
+              <label className="text-sm text-gray-700">Required field</label>
+            </div>
+          </div>
+        )
+
+      case 'select':
+        return (
+          <div className="space-y-3">
+            <InputField
+              label="Name"
+              value={localComponent?.props?.name || 'select'}
+              onChange={(val) => updateProp('name', val)}
+              placeholder="select"
+            />
+            <InputField
+              label="ID"
+              value={localComponent?.props?.id || localComponent?.props?.name || 'select'}
+              onChange={(val) => updateProp('id', val)}
+              placeholder="select"
+            />
+            <InputField
+              label="Label"
+              value={localComponent?.props?.label || ''}
+              onChange={(val) => updateProp('label', val)}
+              placeholder="Select Label (optional)"
+            />
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Options (one per line)</label>
+              <textarea
+                value={(localComponent?.props?.options || ['Option 1', 'Option 2', 'Option 3']).join('\n')}
+                onChange={(e) => {
+                  const options = e.target.value.split('\n').filter(line => line.trim())
+                  updateProp('options', options.length > 0 ? options : ['Option 1'])
+                }}
+                rows={5}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#ff6b35] focus:border-transparent"
+                placeholder="Option 1&#10;Option 2&#10;Option 3"
+              />
+              <p className="text-xs text-gray-500 mt-1">Each line becomes an option. The value will be automatically generated from the option text.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={localComponent?.props?.required || false}
+                onChange={(e) => updateProp('required', e.target.checked)}
+                className="w-4 h-4 text-[#ff6b35] border-gray-300 rounded focus:ring-[#ff6b35]"
+              />
+              <label className="text-sm text-gray-700">Required field</label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={localComponent?.props?.multiple || false}
+                onChange={(e) => updateProp('multiple', e.target.checked)}
+                className="w-4 h-4 text-[#ff6b35] border-gray-300 rounded focus:ring-[#ff6b35]"
+              />
+              <label className="text-sm text-gray-700">Allow multiple selections</label>
+            </div>
+          </div>
+        )
+
       case 'product-search':
         return (
           <div className="space-y-3">
@@ -2042,21 +2431,29 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
           onToggle={() => toggleSection('spacing')}
         />
         {expandedSections.spacing && (
-          <div className="space-y-3 mt-2 pl-2 border-l-2 border-gray-200">
-            <div className="grid grid-cols-2 gap-2">
-              <InputField label="Margin Top" value={getStyleValue('marginTop')} onChange={(v) => updateStyle('marginTop', v)} />
-              <InputField label="Margin Right" value={getStyleValue('marginRight')} onChange={(v) => updateStyle('marginRight', v)} />
-              <InputField label="Margin Bottom" value={getStyleValue('marginBottom')} onChange={(v) => updateStyle('marginBottom', v)} />
-              <InputField label="Margin Left" value={getStyleValue('marginLeft')} onChange={(v) => updateStyle('marginLeft', v)} />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <InputField label="Padding Top" value={getStyleValue('paddingTop')} onChange={(v) => updateStyle('paddingTop', v)} />
-              <InputField label="Padding Right" value={getStyleValue('paddingRight')} onChange={(v) => updateStyle('paddingRight', v)} />
-              <InputField label="Padding Bottom" value={getStyleValue('paddingBottom')} onChange={(v) => updateStyle('paddingBottom', v)} />
-              <InputField label="Padding Left" value={getStyleValue('paddingLeft')} onChange={(v) => updateStyle('paddingLeft', v)} />
-            </div>
-            <InputField label="Margin (shorthand)" value={getStyleValue('margin')} onChange={(v) => updateStyle('margin', v)} placeholder="10px 20px" />
-            <InputField label="Padding (shorthand)" value={getStyleValue('padding')} onChange={(v) => updateStyle('padding', v)} placeholder="10px 20px" />
+          <div className="space-y-4 mt-2 pl-2 border-l-2 border-gray-200">
+            <SpacingInputGroup
+              title="Margin"
+              topValue={getStyleValue('marginTop')}
+              rightValue={getStyleValue('marginRight')}
+              bottomValue={getStyleValue('marginBottom')}
+              leftValue={getStyleValue('marginLeft')}
+              onTopChange={(v) => updateStyle('marginTop', v)}
+              onRightChange={(v) => updateStyle('marginRight', v)}
+              onBottomChange={(v) => updateStyle('marginBottom', v)}
+              onLeftChange={(v) => updateStyle('marginLeft', v)}
+            />
+            <SpacingInputGroup
+              title="Padding"
+              topValue={getStyleValue('paddingTop')}
+              rightValue={getStyleValue('paddingRight')}
+              bottomValue={getStyleValue('paddingBottom')}
+              leftValue={getStyleValue('paddingLeft')}
+              onTopChange={(v) => updateStyle('paddingTop', v)}
+              onRightChange={(v) => updateStyle('paddingRight', v)}
+              onBottomChange={(v) => updateStyle('paddingBottom', v)}
+              onLeftChange={(v) => updateStyle('paddingLeft', v)}
+            />
           </div>
         )}
       </div>
@@ -2847,9 +3244,307 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
     </div>
   )
 
-  // Animation Tab - Combines Effects and Advanced
+  // Animation definitions with preview support
+  const animationPresets = {
+    // Entry Animations
+    fadeIn: { name: 'Fade In', keyframes: '@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }', animation: 'fadeIn 0.6s ease-in' },
+    fadeInUp: { name: 'Fade In Up', keyframes: '@keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }', animation: 'fadeInUp 0.6s ease-out' },
+    fadeInDown: { name: 'Fade In Down', keyframes: '@keyframes fadeInDown { from { opacity: 0; transform: translateY(-30px); } to { opacity: 1; transform: translateY(0); } }', animation: 'fadeInDown 0.6s ease-out' },
+    fadeInLeft: { name: 'Fade In Left', keyframes: '@keyframes fadeInLeft { from { opacity: 0; transform: translateX(-30px); } to { opacity: 1; transform: translateX(0); } }', animation: 'fadeInLeft 0.6s ease-out' },
+    fadeInRight: { name: 'Fade In Right', keyframes: '@keyframes fadeInRight { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }', animation: 'fadeInRight 0.6s ease-out' },
+    slideInUp: { name: 'Slide In Up', keyframes: '@keyframes slideInUp { from { transform: translateY(100%); } to { transform: translateY(0); } }', animation: 'slideInUp 0.5s ease-out' },
+    slideInDown: { name: 'Slide In Down', keyframes: '@keyframes slideInDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }', animation: 'slideInDown 0.5s ease-out' },
+    slideInLeft: { name: 'Slide In Left', keyframes: '@keyframes slideInLeft { from { transform: translateX(-100%); } to { transform: translateX(0); } }', animation: 'slideInLeft 0.5s ease-out' },
+    slideInRight: { name: 'Slide In Right', keyframes: '@keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }', animation: 'slideInRight 0.5s ease-out' },
+    zoomIn: { name: 'Zoom In', keyframes: '@keyframes zoomIn { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }', animation: 'zoomIn 0.5s ease-out' },
+    zoomOut: { name: 'Zoom Out', keyframes: '@keyframes zoomOut { from { opacity: 0; transform: scale(1.5); } to { opacity: 1; transform: scale(1); } }', animation: 'zoomOut 0.5s ease-out' },
+    bounceIn: { name: 'Bounce In', keyframes: '@keyframes bounceIn { 0% { opacity: 0; transform: scale(0.3); } 50% { opacity: 1; transform: scale(1.05); } 70% { transform: scale(0.9); } 100% { transform: scale(1); } }', animation: 'bounceIn 0.6s ease-out' },
+    bounceInUp: { name: 'Bounce In Up', keyframes: '@keyframes bounceInUp { 0% { opacity: 0; transform: translateY(60px); } 60% { opacity: 1; transform: translateY(-10px); } 80% { transform: translateY(5px); } 100% { transform: translateY(0); } }', animation: 'bounceInUp 0.8s ease-out' },
+    bounceInDown: { name: 'Bounce In Down', keyframes: '@keyframes bounceInDown { 0% { opacity: 0; transform: translateY(-60px); } 60% { opacity: 1; transform: translateY(10px); } 80% { transform: translateY(-5px); } 100% { transform: translateY(0); } }', animation: 'bounceInDown 0.8s ease-out' },
+    rotateIn: { name: 'Rotate In', keyframes: '@keyframes rotateIn { from { opacity: 0; transform: rotate(-200deg); } to { opacity: 1; transform: rotate(0); } }', animation: 'rotateIn 0.6s ease-out' },
+    flipInX: { name: 'Flip In X', keyframes: '@keyframes flipInX { from { opacity: 0; transform: perspective(400px) rotateX(90deg); } to { opacity: 1; transform: perspective(400px) rotateX(0); } }', animation: 'flipInX 0.6s ease-out' },
+    flipInY: { name: 'Flip In Y', keyframes: '@keyframes flipInY { from { opacity: 0; transform: perspective(400px) rotateY(90deg); } to { opacity: 1; transform: perspective(400px) rotateY(0); } }', animation: 'flipInY 0.6s ease-out' },
+    // Hover Animations
+    pulse: { name: 'Pulse', keyframes: '@keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }', animation: 'pulse 2s ease-in-out infinite' },
+    bounce: { name: 'Bounce', keyframes: '@keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }', animation: 'bounce 1s ease-in-out infinite' },
+    shake: { name: 'Shake', keyframes: '@keyframes shake { 0%, 100% { transform: translateX(0); } 10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); } 20%, 40%, 60%, 80% { transform: translateX(5px); } }', animation: 'shake 0.5s ease-in-out infinite' },
+    swing: { name: 'Swing', keyframes: '@keyframes swing { 20% { transform: rotate(15deg); } 40% { transform: rotate(-10deg); } 60% { transform: rotate(5deg); } 80% { transform: rotate(-5deg); } 100% { transform: rotate(0deg); } }', animation: 'swing 1s ease-in-out infinite' },
+    wobble: { name: 'Wobble', keyframes: '@keyframes wobble { 0% { transform: translateX(0%); } 15% { transform: translateX(-25px) rotate(-5deg); } 30% { transform: translateX(20px) rotate(3deg); } 45% { transform: translateX(-15px) rotate(-3deg); } 60% { transform: translateX(10px) rotate(2deg); } 75% { transform: translateX(-5px) rotate(-1deg); } 100% { transform: translateX(0%); } }', animation: 'wobble 1s ease-in-out infinite' },
+    rubber: { name: 'Rubber', keyframes: '@keyframes rubber { 0% { transform: scale(1); } 30% { transform: scaleX(1.25) scaleY(0.75); } 40% { transform: scaleX(0.75) scaleY(1.25); } 50% { transform: scaleX(1.15) scaleY(0.85); } 65% { transform: scaleX(0.95) scaleY(1.05); } 75% { transform: scaleX(1.05) scaleY(0.95); } 100% { transform: scale(1); } }', animation: 'rubber 0.8s ease-in-out infinite' },
+    flash: { name: 'Flash', keyframes: '@keyframes flash { 0%, 50%, 100% { opacity: 1; } 25%, 75% { opacity: 0; } }', animation: 'flash 1s ease-in-out infinite' },
+    heartBeat: { name: 'Heart Beat', keyframes: '@keyframes heartBeat { 0% { transform: scale(1); } 14% { transform: scale(1.3); } 28% { transform: scale(1); } 42% { transform: scale(1.3); } 70% { transform: scale(1); } }', animation: 'heartBeat 1.5s ease-in-out infinite' },
+    // Advanced Animations
+    float: { name: 'Float', keyframes: '@keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-20px); } }', animation: 'float 3s ease-in-out infinite' },
+    glow: { name: 'Glow', keyframes: '@keyframes glow { 0%, 100% { box-shadow: 0 0 5px rgba(255, 107, 53, 0.5); } 50% { box-shadow: 0 0 20px rgba(255, 107, 53, 0.8), 0 0 30px rgba(255, 107, 53, 0.6); } }', animation: 'glow 2s ease-in-out infinite' },
+    gradientShift: { name: 'Gradient Shift', keyframes: '@keyframes gradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }', animation: 'gradientShift 3s ease infinite', note: 'Requires gradient background' },
+    rotate: { name: 'Rotate', keyframes: '@keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }', animation: 'rotate 2s linear infinite' },
+    spin: { name: 'Spin', keyframes: '@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }', animation: 'spin 1s linear infinite' },
+    ping: { name: 'Ping', keyframes: '@keyframes ping { 75%, 100% { transform: scale(2); opacity: 0; } }', animation: 'ping 1s cubic-bezier(0, 0, 0.2, 1) infinite' },
+    scale: { name: 'Scale', keyframes: '@keyframes scale { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }', animation: 'scale 2s ease-in-out infinite' },
+    slide: { name: 'Slide', keyframes: '@keyframes slide { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(20px); } }', animation: 'slide 2s ease-in-out infinite' },
+  }
+
+  // Preview animation function
+  const previewAnimation = (animationKey: string) => {
+    if (!animationPreviewRef.current) return
+    
+    const animation = animationPresets[animationKey as keyof typeof animationPresets]
+    if (!animation) return
+    
+    setPreviewingAnimation(animationKey)
+    
+    // Reset animation
+    animationPreviewRef.current.style.animation = 'none'
+    animationPreviewRef.current.offsetHeight // Trigger reflow
+    animationPreviewRef.current.style.animation = animation.animation
+    
+    // Stop preview after animation completes
+    setTimeout(() => {
+      setPreviewingAnimation(null)
+    }, 6000)
+  }
+
+  // Animation Tab - Comprehensive with preview
   const renderAnimationTab = () => (
     <div className="space-y-4">
+      {/* Animation Preview Box */}
+      <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-4 rounded-lg border-2 border-dashed border-gray-300">
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-sm font-semibold text-gray-700">Animation Preview</label>
+          <button
+            onClick={() => {
+              const currentAnim = getStyleValue('animation')
+              if (currentAnim) {
+                Object.entries(animationPresets).forEach(([key, anim]) => {
+                  if (anim.animation === currentAnim || currentAnim.includes(key)) {
+                    previewAnimation(key)
+                  }
+                })
+              }
+            }}
+            className="text-xs px-2 py-1 bg-[#ff6b35] text-white rounded hover:bg-[#ff8c5a] transition"
+          >
+            Preview Current
+          </button>
+        </div>
+        <div
+          ref={animationPreviewRef}
+          className="w-full h-20 bg-white rounded-lg shadow-md flex items-center justify-center text-gray-600 font-medium border-2 border-gray-200"
+          style={{
+            animation: getStyleValue('animation') || undefined,
+          }}
+        >
+          {previewingAnimation ? `Previewing: ${animationPresets[previewingAnimation as keyof typeof animationPresets]?.name}` : 'Animation Preview Box'}
+        </div>
+        <p className="text-xs text-gray-500 mt-2">Select an animation below to see it preview here</p>
+      </div>
+
+      {/* Animation Types */}
+      <div>
+        <SectionHeader
+          title="Animation Types"
+          isExpanded={expandedSections.animationTypes !== false}
+          onToggle={() => toggleSection('animationTypes')}
+        />
+        {(expandedSections.animationTypes !== false) && (
+          <div className="space-y-4 mt-2 pl-2 border-l-2 border-blue-200">
+            {/* Entry/Initial Animation */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-2">1. Select Animation</label>
+              <select
+                value={(() => {
+                  const currentAnim = getStyleValue('animation') || ''
+                  // Find which entry animation matches the current one
+                  const entryAnims = Object.entries(animationPresets).filter(([key]) => 
+                    ['fadeIn', 'fadeInUp', 'fadeInDown', 'fadeInLeft', 'fadeInRight', 
+                     'slideInUp', 'slideInDown', 'slideInLeft', 'slideInRight',
+                     'zoomIn', 'zoomOut', 'bounceIn', 'bounceInUp', 'bounceInDown',
+                     'rotateIn', 'flipInX', 'flipInY', 'float', 'glow', 'gradientShift', 
+                     'rotate', 'spin', 'ping', 'scale', 'slide'].includes(key)
+                  )
+                  const found = entryAnims.find(([key, anim]) => 
+                    anim.animation === currentAnim || currentAnim.includes(key)
+                  )
+                  return found ? found[0] : ''
+                })()}
+                onChange={(e) => {
+                  const selectedKey = e.target.value
+                  const hoverAnim = getStyleValue('hoverAnimation') || ''
+                  
+                  if (selectedKey) {
+                    const anim = animationPresets[selectedKey as keyof typeof animationPresets]
+                    if (anim) {
+                      updateStyle('animation', anim.animation)
+                      previewAnimation(selectedKey)
+                    }
+                  } else {
+                    updateStyle('animation', '')
+                  }
+                }}
+                className="w-full px-4 py-2.5 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ff6b35] focus:border-[#ff6b35] hover:border-gray-300 transition-all"
+              >
+                <option value="">None</option>
+                <optgroup label="Entry Animations">
+                  {Object.entries(animationPresets).filter(([key]) => 
+                    ['fadeIn', 'fadeInUp', 'fadeInDown', 'fadeInLeft', 'fadeInRight', 
+                     'slideInUp', 'slideInDown', 'slideInLeft', 'slideInRight',
+                     'zoomIn', 'zoomOut', 'bounceIn', 'bounceInUp', 'bounceInDown',
+                     'rotateIn', 'flipInX', 'flipInY'].includes(key)
+                  ).map(([key, anim]) => (
+                    <option key={key} value={key}>{anim.name}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Advanced Animations">
+                  {Object.entries(animationPresets).filter(([key]) => 
+                    ['float', 'glow', 'gradientShift', 'rotate', 'spin', 'ping', 'scale', 'slide'].includes(key)
+                  ).map(([key, anim]) => (
+                    <option key={key} value={key}>{anim.name}{anim.note ? ` (${anim.note})` : ''}</option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+
+            {/* Hover Animation */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-2">2. Select Hover Animation</label>
+              <select
+                value={(() => {
+                  const currentHoverAnim = getStyleValue('hoverAnimation') || ''
+                  // Find which hover animation matches the current one
+                  const hoverAnims = Object.entries(animationPresets).filter(([key]) => 
+                    ['pulse', 'bounce', 'shake', 'swing', 'wobble', 'rubber', 'flash', 'heartBeat'].includes(key)
+                  )
+                  const found = hoverAnims.find(([key, anim]) => 
+                    anim.animation === currentHoverAnim || currentHoverAnim.includes(key)
+                  )
+                  return found ? found[0] : ''
+                })()}
+                onChange={(e) => {
+                  const selectedKey = e.target.value
+                  if (selectedKey) {
+                    const anim = animationPresets[selectedKey as keyof typeof animationPresets]
+                    if (anim) {
+                      updateStyle('hoverAnimation', anim.animation)
+                    }
+                  } else {
+                    updateStyle('hoverAnimation', '')
+                  }
+                }}
+                className="w-full px-4 py-2.5 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ff6b35] focus:border-[#ff6b35] hover:border-gray-300 transition-all"
+              >
+                <option value="">None</option>
+                <optgroup label="Hover & Continuous Animations">
+                  {Object.entries(animationPresets).filter(([key]) => 
+                    ['pulse', 'bounce', 'shake', 'swing', 'wobble', 'rubber', 'flash', 'heartBeat'].includes(key)
+                  ).map(([key, anim]) => (
+                    <option key={key} value={key}>{anim.name}</option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Animation Controls */}
+      <div>
+        <SectionHeader
+          title="Animation Controls"
+          isExpanded={expandedSections.animationControls !== false}
+          onToggle={() => toggleSection('animationControls')}
+        />
+        {(expandedSections.animationControls !== false) && (
+          <div className="space-y-3 mt-2 pl-2 border-l-2 border-gray-200">
+            <InputField
+              label="Animation Duration"
+              value={(() => {
+                const anim = getStyleValue('animation')
+                if (!anim) return ''
+                const match = anim.match(/(\d+(?:\.\d+)?)s/)
+                return match ? match[1] : ''
+              })()}
+              onChange={(v) => {
+                const currentAnim = getStyleValue('animation') || 'fadeIn 0.6s ease'
+                const newAnim = currentAnim.replace(/\d+(?:\.\d+)?s/, `${v}s`)
+                updateStyle('animation', newAnim)
+              }}
+              placeholder="0.6"
+              type="number"
+            />
+            <SelectField
+              label="Animation Timing"
+              value={(() => {
+                const anim = getStyleValue('animation')
+                if (!anim) return 'ease'
+                if (anim.includes('ease-in-out')) return 'ease-in-out'
+                if (anim.includes('ease-out')) return 'ease-out'
+                if (anim.includes('ease-in')) return 'ease-in'
+                if (anim.includes('linear')) return 'linear'
+                return 'ease'
+              })()}
+              onChange={(v) => {
+                const currentAnim = getStyleValue('animation') || 'fadeIn 0.6s ease'
+                const newAnim = currentAnim.replace(/\b(ease|ease-in|ease-out|ease-in-out|linear)\b/, v)
+                updateStyle('animation', newAnim)
+              }}
+              options={[
+                { value: 'ease', label: 'Ease' },
+                { value: 'ease-in', label: 'Ease In' },
+                { value: 'ease-out', label: 'Ease Out' },
+                { value: 'ease-in-out', label: 'Ease In Out' },
+                { value: 'linear', label: 'Linear' },
+              ]}
+            />
+            <SelectField
+              label="Animation Iteration"
+              value={(() => {
+                const anim = getStyleValue('animation')
+                return anim?.includes('infinite') ? 'infinite' : 'once'
+              })()}
+              onChange={(v) => {
+                const currentAnim = getStyleValue('animation') || ''
+                let newAnim = currentAnim.replace(/\s+infinite/g, '')
+                if (v === 'infinite') {
+                  newAnim += ' infinite'
+                }
+                updateStyle('animation', newAnim.trim())
+              }}
+              options={[
+                { value: 'once', label: 'Play Once' },
+                { value: 'infinite', label: 'Loop Infinite' },
+              ]}
+            />
+            <InputField
+              label="Animation Delay"
+              value={getStyleValue('animationDelay') || ''}
+              onChange={(v) => updateStyle('animationDelay', v)}
+              placeholder="0.2s"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => updateStyle('animation', '')}
+                className="flex-1 px-3 py-2 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition"
+              >
+                Remove Animation
+              </button>
+              <button
+                onClick={() => {
+                  const currentAnim = getStyleValue('animation')
+                  if (currentAnim && animationPreviewRef.current) {
+                    previewAnimation(Object.keys(animationPresets).find(key => 
+                      animationPresets[key as keyof typeof animationPresets].animation === currentAnim
+                    ) || '')
+                  }
+                }}
+                className="flex-1 px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition"
+              >
+                Preview Again
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Transforms */}
       <div>
         <SectionHeader
@@ -3184,9 +3879,9 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
   ]
 
   return (
-    <div className="w-80 bg-white border-l border-gray-200 h-screen flex flex-col shadow-sm">
+    <div className="w-80 bg-white h-full flex flex-col shadow-sm overflow-hidden">
       {/* Header */}
-      <div className="p-4 sm:p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
+      <div className="p-4 sm:p-6 border-b border-gray-200 flex-shrink-0 bg-white z-10">
         <div className="flex items-center justify-between mb-2">
           <div>
             <h3 className="text-xl sm:text-2xl font-bold text-gray-900">Properties</h3>
@@ -3203,7 +3898,7 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 flex bg-gray-50">
+      <div className="border-b border-gray-200 flex bg-gray-50 flex-shrink-0">
         {tabs.map(tab => {
           const Icon = tab.icon
           return (
@@ -3224,7 +3919,7 @@ export default function PropertiesPanel({ component, onUpdate, onDelete }: Prope
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 min-h-0">
         {activeTab === 'content' && renderContentTab()}
         {activeTab === 'style' && renderStyleTab()}
         {activeTab === 'animation' && renderAnimationTab()}

@@ -24,6 +24,8 @@ export type ComponentType =
   | 'code-block'
   | 'alert'
   | 'social-icons'
+  | 'dropdown'
+  | 'select'
 
 export interface Component {
   id: string
